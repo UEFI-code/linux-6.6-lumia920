@@ -234,6 +234,9 @@ efi_status_t allocate_new_fdt_and_exit_boot(void *handle,
 	unsigned long fdt_addr = 0;
 	unsigned long fdt_size = 0;
 
+	efi_info("cmdline: %s\n", cmdline_ptr);
+	efi_info("efi_novamap=%d\n", efi_novamap);
+
 	if (!efi_novamap) {
 		status = efi_alloc_virtmap(&priv.runtime_map, &desc_size,
 					   &desc_ver);
