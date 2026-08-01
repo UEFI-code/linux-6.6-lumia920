@@ -356,6 +356,11 @@ efi_status_t efi_boot_kernel(void *handle, efi_loaded_image_t *image,
 
 	if (IS_ENABLED(CONFIG_ARM))
 		efi_handle_post_ebs_state();
+	
+	// test framebuffer to chk is it still working after exit boot services
+	volatile u32 *fb = (u32 *)0x80400000;
+	for (int i = 0; i < 1000; i++)
+		*fb = 0xffffffff;
 
 	efi_enter_kernel(kernel_addr, fdt_addr, fdt_totalsize((void *)fdt_addr));
 	/* not reached */
