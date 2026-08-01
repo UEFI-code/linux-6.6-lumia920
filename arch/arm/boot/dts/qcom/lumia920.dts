@@ -34,6 +34,6 @@
 
     chosen {
         bootargs =
-            "console=tty0 earlyprintk ignore_loglevel";
+            "efi=efi_novamap console=tty0 earlyprintk ignore_loglevel";
     };
 };
