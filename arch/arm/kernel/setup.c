@@ -63,6 +63,8 @@
 
 #include "atags.h"
 
+extern void __init lumiafb_early_init(void);
+
 
 #if defined(CONFIG_FPE_NWFPE) || defined(CONFIG_FPE_FASTFPE)
 char fpe_type[8];
@@ -1140,6 +1142,7 @@ void __init setup_arch(char **cmdline_p)
 
 	early_fixmap_init();
 	early_ioremap_init();
+	lumiafb_early_init();
 
 	parse_early_param();
 
