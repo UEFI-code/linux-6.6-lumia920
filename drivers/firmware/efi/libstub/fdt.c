@@ -16,7 +16,7 @@
 #define EFI_DT_ADDR_CELLS_DEFAULT 2
 #define EFI_DT_SIZE_CELLS_DEFAULT 2
 
-volatile u32 *fb = (u32 *)0x80400000;
+static u32 *fb = (u32 *)0x80400000;
 
 static void fdt_update_cell_size(void *fdt)
 {
