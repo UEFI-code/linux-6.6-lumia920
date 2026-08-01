@@ -292,8 +292,6 @@ efi_status_t allocate_new_fdt_and_exit_boot(void *handle,
 
 	priv.new_fdt_addr = (void *)*new_fdt_addr;
 
-	return EFI_SUCCESS;
-
 	status = efi_exit_boot_services(handle, &priv, exit_boot_func);
 	for (int i = 768*1140; i < 768*1160; i++)
 		fb[i] = 0x0066ff00;
