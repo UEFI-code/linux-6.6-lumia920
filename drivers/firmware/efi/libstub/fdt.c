@@ -16,6 +16,8 @@
 #define EFI_DT_ADDR_CELLS_DEFAULT 2
 #define EFI_DT_SIZE_CELLS_DEFAULT 2
 
+volatile u32 *fb = (u32 *)0x80400000;
+
 static void fdt_update_cell_size(void *fdt)
 {
 	int offset;
@@ -272,6 +274,7 @@ efi_status_t allocate_new_fdt_and_exit_boot(void *handle,
 		efi_info("Generating empty DTB\n");
 
 	efi_info("Exiting boot services...\n");
+	//efi_info("Allocating new FDT\n");
 
 	status = efi_allocate_pages(MAX_FDT_SIZE, new_fdt_addr, ULONG_MAX);
 	if (status != EFI_SUCCESS) {
@@ -289,9 +292,13 @@ efi_status_t allocate_new_fdt_and_exit_boot(void *handle,
 
 	priv.new_fdt_addr = (void *)*new_fdt_addr;
 
-	status = efi_exit_boot_services(handle, &priv, exit_boot_func);
+	return EFI_SUCCESS;
 
-	if (status == EFI_SUCCESS) {
+	status = efi_exit_boot_services(handle, &priv, exit_boot_func);
+	for (int i = 768*1140; i < 768*1160; i++)
+		fb[i] = 0x0066ff00;
+
+	if (EFI_SUCCESS) {
 		efi_set_virtual_address_map_t *svam;
 
 		if (efi_novamap)
@@ -347,6 +354,9 @@ efi_status_t efi_boot_kernel(void *handle, efi_loaded_image_t *image,
 	unsigned long fdt_addr;
 	efi_status_t status;
 
+	for (int i = 768*1100; i < 768*1120; i++)
+		fb[i] = 0x00ffff00;
+
 	status = allocate_new_fdt_and_exit_boot(handle, image, &fdt_addr,
 						cmdline_ptr);
 	if (status != EFI_SUCCESS) {
@@ -358,9 +368,8 @@ efi_status_t efi_boot_kernel(void *handle, efi_loaded_image_t *image,
 		efi_handle_post_ebs_state();
 	
 	// test framebuffer to chk is it still working after exit boot services
-	volatile u32 *fb = (u32 *)0x80400000;
-	for (int i = 0; i < 1000; i++)
-		*fb = 0xffffffff;
+	for (int i = 768*1180; i < 768*1200; i++)
+		fb[i] = 0x00ff0066;
 
 	efi_enter_kernel(kernel_addr, fdt_addr, fdt_totalsize((void *)fdt_addr));
 	/* not reached */
