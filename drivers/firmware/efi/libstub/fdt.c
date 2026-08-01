@@ -296,7 +296,7 @@ efi_status_t allocate_new_fdt_and_exit_boot(void *handle,
 	for (int i = 768*1140; i < 768*1160; i++)
 		fb[i] = 0x0066ff00;
 
-	if (EFI_SUCCESS) {
+	if (status == EFI_SUCCESS) {
 		efi_set_virtual_address_map_t *svam;
 
 		if (efi_novamap)
