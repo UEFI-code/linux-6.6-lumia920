@@ -1,0 +1,30 @@
+/ {
+    cpus {
+        cpu@0 {
+            device_type = "cpu";
+            compatible = "arm,cortex-a9";
+            reg = <0>;
+        };
+    };
+
+    intc: interrupt-controller@2000000 {
+        compatible = "arm,cortex-a9-gic";
+        interrupt-controller;
+        #interrupt-cells=<3>;
+        reg=<0x02000000 0x1000>,
+            <0x02002000 0x1000>;
+    };
+
+    timer {
+        compatible="arm,armv7-timer";
+        interrupts=<1 13 0x304>,
+                   <1 14 0x304>,
+                   <1 11 0x304>,
+                   <1 10 0x304>;
+    };
+
+    chosen {
+        bootargs =
+            "console=tty0 ignore_loglevel";
+    };
+};
