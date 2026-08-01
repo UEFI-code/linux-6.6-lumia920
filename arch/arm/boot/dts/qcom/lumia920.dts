@@ -1,6 +1,9 @@
 /dts-v1/;
 
 / {
+    #address-cells = <1>;
+    #size-cells = <1>;
+
     interrupt-parent = <&intc>;
 
     cpus {
@@ -13,7 +16,30 @@
 
     memory@90000000 {
         device_type = "memory";
-        reg = <0x90000000 0x2E6CC000>;
+
+        reg = <0x80800000 0x00400000>,
+              <0x81700000 0x027B2000>,
+              <0x84239000 0x0037F000>,
+              <0x845BC000 0x00004000>,
+              <0x84601000 0x047FF000>,
+              <0x90000000 0x2E6CC000>,
+              <0xBE6D5000 0x00174000>,
+              <0xBE8DA000 0x00049000>,
+              <0xBE966000 0x00040000>,
+              <0xBEA69000 0x00014000>,
+              <0xBFACD000 0x00004000>,
+              <0xBFDF7000 0x00001000>;
+    };
+
+    reserved-memory {
+        #address-cells = <1>;
+        #size-cells = <1>;
+        ranges;
+
+        framebuffer@80400000 {
+            reg = <0x80400000 0x003C0000>;
+            no-map;
+        };
     };
 
     intc: interrupt-controller@2000000 {
@@ -30,10 +56,5 @@
                    <1 14 0x304>,
                    <1 11 0x304>,
                    <1 10 0x304>;
-    };
-
-    chosen {
-        bootargs =
-            "console=tty0 earlyprintk ignore_loglevel";
     };
 };
