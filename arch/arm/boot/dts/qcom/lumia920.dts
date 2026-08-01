@@ -11,7 +11,7 @@
 
     memory@90000000 {
         device_type = "memory";
-        reg = <0x90000000 0xBE6CC0000>;
+        reg = <0x90000000 0xBE6CC000>;
     };
 
     intc: interrupt-controller@2000000 {
