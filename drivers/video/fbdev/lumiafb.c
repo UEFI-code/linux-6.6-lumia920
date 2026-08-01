@@ -25,14 +25,12 @@ static unsigned int lumiafb_y;
 
 static inline void lumiafb_plot(u32 x, u32 y, u32 color)
 {
-	u32 __iomem *pixel;
+	u32 __iomem *fb = lumiafb_base;
 
 	if (x >= LUMIAFB_WIDTH || y >= LUMIAFB_HEIGHT)
 		return;
 
-	pixel = lumiafb_base + y * LUMIAFB_WIDTH * LUMIAFB_BPP +
-		x * LUMIAFB_BPP;
-	writel_relaxed(color, pixel);
+	fb[y * LUMIAFB_WIDTH + x] = color;
 }
 
 static void lumiafb_clear(void)
