@@ -20,6 +20,8 @@ the problems which may result by upgrading your kernel.
 # Lumia 920 build
 
 ```bash
+export ARCH=arm
+export CROSS_COMPILE=arm-none-eabi-
 make multi_v7_defconfig
 make menuconfig
 ```
@@ -27,8 +29,7 @@ make menuconfig
 Select
 
 ```
-EFI support
-EFI stub support
+UEFI runtime support
 Framebuffer Console
 Simple framebuffer
 Qualcomm MSM support
@@ -36,8 +37,10 @@ Qualcomm MSM support
 
 ```bash
 cp .config arch/arm/configs/lumia920_defconfig
+make lumia920_defconfig
 ```
 
 ```
-make ARCH=arm arch/arm/boot/dts/qcom/lumia920.dtb
+make -j$(nproc)
+make qcom/lumia920.dtb
 ```
