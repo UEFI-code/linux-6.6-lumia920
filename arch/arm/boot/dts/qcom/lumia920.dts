@@ -1,6 +1,8 @@
 /dts-v1/;
 
 / {
+    interrupt-parent = <&intc>;
+
     cpus {
         cpu@0 {
             device_type = "cpu";
