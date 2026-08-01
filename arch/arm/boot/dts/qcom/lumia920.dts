@@ -27,6 +27,6 @@
 
     chosen {
         bootargs =
-            "console=tty0 ignore_loglevel";
+            "console=tty0 earlyprintk ignore_loglevel";
     };
 };
