@@ -868,6 +868,8 @@ static void __init print_unknown_bootoptions(void)
 
 static u32 *fb = (u32 *)0x80400000;
 
+void lumiafb_early_deinit(void);
+
 asmlinkage __visible __init __no_sanitize_address __noreturn __no_stack_protector
 void start_kernel(void)
 {
@@ -1071,6 +1073,7 @@ void start_kernel(void)
 	kcsan_init();
 
 	/* Do the rest non-__init'ed, we're now alive */
+	lumiafb_early_deinit();
 	arch_call_rest_init();
 
 	/*
