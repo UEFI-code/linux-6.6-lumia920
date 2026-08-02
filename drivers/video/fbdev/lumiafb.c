@@ -120,7 +120,7 @@ static void lumiafb_write(struct console *con, const char *s,
 static struct console lumiafb_console = {
 	.name = "lumiafb",
 	.write = lumiafb_write,
-	.flags = CON_BOOT | CON_PRINTBUFFER,
+	.flags = CON_PRINTBUFFER,
 	.index = -1,
 };
 
@@ -130,4 +130,9 @@ void __init lumiafb_early_init(void)
 	register_console(&lumiafb_console);
 	pr_info("lumiafb: early BGRA console at 0x%08x\n",
 		(unsigned int)LUMIAFB_PHYS);
+}
+
+void lumiafb_early_deinit(void)
+{
+    unregister_console(&lumiafb_console);
 }
