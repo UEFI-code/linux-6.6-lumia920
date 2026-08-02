@@ -246,22 +246,6 @@ __create_page_tables:
 	blo	1b
 
 	/*
-	 * Lumia framebuffer early identity map:
-	 * VA 0x80400000 -> PA 0x80400000
-	 * Map 4MB (0x80400000 - 0x807fffff) for early boot debugging.
-	 *
-	 * This is only intended for very early boot debugging before
-	 * the normal memory mappings are fully established.
-	 */
-	ldr	r5, =0x80400000
-	mov	r6, #4
-1:	orr	r3, r7, r5
-	str	r3, [r4, r5, lsr #(SECTION_SHIFT - PMD_ENTRY_ORDER)]
-	add	r5, r5, #0x00100000
-	subs	r6, r6, #1
-	bne	1b
-
-	/*
 	 * The main matter: map in the kernel using section mappings, and
 	 * set two variables to indicate the physical start and end of the
 	 * kernel.
@@ -319,6 +303,28 @@ __create_page_tables:
 	strne	r6, [r3], #1 << PMD_ENTRY_ORDER
 	addne	r6, r6, #1 << SECTION_SHIFT
 	strne	r6, [r3]
+
+	/*
+	 * Lumia framebuffer early identity map:
+	 * VA 0x80400000 -> PA 0x80400000
+	 * Map 4MB (0x80400000 - 0x807fffff) for early boot debugging.
+	 *
+	 * This happens after the normal kernel section mappings are built,
+	 * so overriding r7 here is safe.
+	 *
+	 * Use strongly-ordered / uncached attributes here. Using
+	 * PROCINFO_MM_MMUFLAGS causes the framebuffer to become normal
+	 * cached RAM, which breaks LCD DMA coherency and causes visible
+	 * glitches once caches become fully active.
+	 */
+	ldr	r7, =(PMD_TYPE_SECT | PMD_SECT_AP_WRITE | PMD_SECT_S | PMD_SECT_UNCACHED | PMD_SECT_XN)
+	ldr	r5, =0x80400000
+	mov	r6, #4
+1:	orr	r3, r7, r5
+	str	r3, [r4, r5, lsr #(SECTION_SHIFT - PMD_ENTRY_ORDER)]
+	add	r5, r5, #0x00100000
+	subs	r6, r6, #1
+	bne	1b
 
 #if defined(CONFIG_ARM_LPAE) && defined(CONFIG_CPU_ENDIAN_BE8)
 	sub	r4, r4, #4			@ Fixup page table pointer
