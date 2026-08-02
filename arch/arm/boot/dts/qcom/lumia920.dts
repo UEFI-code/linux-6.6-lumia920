@@ -1,6 +1,11 @@
 /dts-v1/;
 
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+
 / {
+    model = "Lumia 920 tiny";
+	compatible = "qcom,msm8960";
+
     #address-cells = <1>;
     #size-cells = <1>;
 
@@ -9,7 +14,7 @@
     cpus {
         cpu@0 {
             device_type = "cpu";
-            compatible = "arm,cortex-a9";
+            compatible = "qcom,krait";
             reg = <0>;
         };
     };
@@ -43,18 +48,27 @@
     };
 
     intc: interrupt-controller@2000000 {
-        compatible = "arm,cortex-a9-gic";
+        compatible = "qcom,msm-qgic2";
+
         interrupt-controller;
-        #interrupt-cells=<3>;
-        reg=<0x02000000 0x1000>,
+        #interrupt-cells = <3>;
+
+        reg =
+            <0x02000000 0x1000>,
             <0x02002000 0x1000>;
     };
 
-    timer {
-        compatible="arm,armv7-timer";
-        interrupts=<1 13 0x304>,
-                   <1 14 0x304>,
-                   <1 11 0x304>,
-                   <1 10 0x304>;
+    timer@200a000 {
+        compatible =
+            "qcom,kpss-timer",
+            "qcom,msm-timer";
+        reg = <0x0200a000 0x100>;
+        interrupts = 
+            <GIC_SPI 1 IRQ_TYPE_LEVEL_HIGH>,
+            <GIC_SPI 2 IRQ_TYPE_LEVEL_HIGH>,
+            <GIC_SPI 3 IRQ_TYPE_LEVEL_HIGH>;
+        clock-frequency =
+            <27000000>,
+            <32768>;
     };
 };
