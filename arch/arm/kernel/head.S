@@ -246,6 +246,22 @@ __create_page_tables:
 	blo	1b
 
 	/*
+	 * Lumia framebuffer early identity map:
+	 * VA 0x80400000 -> PA 0x80400000
+	 * Map 4MB (0x80400000 - 0x807fffff) for early boot debugging.
+	 *
+	 * This is only intended for very early boot debugging before
+	 * the normal memory mappings are fully established.
+	 */
+	ldr	r5, =0x80400000
+	mov	r6, #4
+1:	orr	r3, r7, r5
+	str	r3, [r4, r5, lsr #(SECTION_SHIFT - PMD_ENTRY_ORDER)]
+	add	r5, r5, #0x00100000
+	subs	r6, r6, #1
+	bne	1b
+
+	/*
 	 * The main matter: map in the kernel using section mappings, and
 	 * set two variables to indicate the physical start and end of the
 	 * kernel.
