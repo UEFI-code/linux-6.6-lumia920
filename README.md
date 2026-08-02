@@ -1,65 +1,155 @@
-# Linux 6.6 for Lumia 920
+# 💥 LINUX 6.6 // LUMIA 920 💥
 
-Since Lumia 920's bootloader has already been unlocked, why not run Linux on it?
+> because a dead mobile platform deserves one last boss fight.
 
-<img src="https://github.com/UEFI-code/LumiaToy/blob/main/920_linux.jpg" width="300">
+<p align="center">
+    <img src="https://github.com/UEFI-code/LumiaToy/blob/main/920_linux.jpg" width="320">
+</p>
 
-## Loader
+<p align="center">
+    🔥 Windows Phone hardware ✦ Linux kernel ✦ framebuffer sorcery ✦ zero sanity 🔥
+</p>
 
-Chk `https://github.com/UEFI-code/LumiaToy`
+---
 
-## Kernel Hacks
+## 📼 WHAT IS THIS
 
-I don't wana to soldering serial port on the phone motherboard, so I use UEFI GOP's framebuffer as early console
+This repository is a cursed attempt at booting a modern Linux 6.6 kernel on the Nokia Lumia 920.
 
-So I need hack:
+The bootloader is unlocked.
 
-- `drivers/firmware/efi/libstub/fdt.c`: Draw dbg colorbar during EFI stub
-- `arch/arm/kernel/head.S`: Insert 0x80400000 to page table, pass-through
-- `drivers/video/fbdev/lumiafb.c`: The drawer
-- `arch/arm/kernel/setup.c`: Register lumiafb
-- `arch/arm/mm/mmu.c`: Kept 0x80400000 in page table, pass-through
-- `init/main.c`: 
-    - Deinit lumiafb before fbcon init
-    - Remove free_initmem since the page table is hacked
+The hardware still lives.
 
-## Build
+So naturally the only reasonable decision was:
+
+"install Linux and start violating memory mappings."
+
+---
+
+## 🧨 BOOTFLOW
+
+UEFI loader:
+
+👉 https://github.com/UEFI-code/LumiaToy
+
+Without it, this repo is just emotionally charged ARM code.
+
+---
+
+## ⚠️ KERNEL HACK ZONE ⚠️
+
+The Lumia 920 has been discontinued for years. Keeping those motherboard pads clean might make you rich in 100 years when some retro-tech collector discovers your untouched hardware shrine (if you are still alive).
+
+This project abuses the UEFI GOP framebuffer as an ultra-early debug console because opening the phone and wiring UART sounds like suffering.
+
+### 🔧 patched areas
+
+- `drivers/firmware/efi/libstub/fdt.c`
+    - draws debug color bars during EFI stub stage
+
+- `arch/arm/kernel/head.S`
+    - injects `0x80400000` into page tables
+    - raw pass-through mapping energy
+
+- `drivers/video/fbdev/lumiafb.c`
+    - custom framebuffer driver
+    - powered entirely by desperation
+
+- `arch/arm/kernel/setup.c`
+    - registers `lumiafb`
+
+- `arch/arm/mm/mmu.c`
+    - preserves framebuffer mapping from total annihilation
+
+- `init/main.c`
+    - deinit framebuffer before fbcon boots
+    - deletes `free_initmem()` because consequences are temporary
+
+---
+
+## 🛠 BUILD
+
+### 1. toolchain setup
 
 ```bash
 export ARCH=arm
 export CROSS_COMPILE=arm-none-eabi-
+```
+
+### 2. configure kernel
+
+```bash
 make multi_v7_defconfig
 make menuconfig
 ```
 
-Select
+Enable these:
 
-```
+```text
 UEFI runtime support
 Framebuffer Console
 Simple framebuffer
 Qualcomm MSM support
 ```
 
+### 3. save config
+
 ```bash
 cp .config arch/arm/configs/lumia920_defconfig
 make lumia920_defconfig
 ```
 
-```
+### 4. build the monster
+
+```bash
 make -j$(nproc)
 make qcom/lumia920.dtb
 ```
 
-## Disclaimer
+If the compiler screams, that means it still feels alive.
 
-This code is UNSTABLE and UNSAFE.
+---
 
-Educational purpose only.
+## 🎭 CURRENT STATUS
 
-DONT DO ANYTHING STUPID.
+✅ boots
 
-Use at your own risk.
+✅ survived MMU
+
+✅ framebuffer speaks
+
+❓ stability
+
+❓ longevity of this ancient phone
+
+❓ whether this should exist at all
+
+❓ who is actually debugging whom
+
+⚠ ancient Qcom magic remains unexplained
+
+---
+
+## ☣ DISCLAIMER ☣
+
+THIS CODE IS:
+
+- unstable
+- unsafe
+- experimental
+- probably offensive to ARM MMU design principles
+
+Do not trust it with important data.
+
+Do not daily-drive it unless chaos is your primary operating system.
+
+If your Lumia explodes into cosmic dust, that's between you and the framebuffer gods.
+
+---
+
+## 🖤 WHY
+
+because old phones deserve absurd afterlives.
 
 ## Original README
 

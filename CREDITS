@@ -7,7 +7,20 @@
 	Thanks,
 
 			Linus
+
+	and Warnings (W).
+
+			SuperHacker UEFI
+
 ----------
+
+N: SuperHacker UEFI
+E: zhuoshizhang@hotmail.com
+D: Wrote Lumia 920 device tree
+D: Framebuffer Necromancy
+D: Page-Table Sorcery
+S: CS=0x30, Hell
+W: MAY TRIGGER MAINTAINER PANIC
 
 N: Matt Mackal
 E: mpm@selenic.com
