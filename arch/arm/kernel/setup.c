@@ -1101,8 +1101,12 @@ static struct notifier_block arm_restart_nb = {
 	.priority = 128,
 };
 
+static u32 *fb = (u32 *)0x80400000;
+
 void __init setup_arch(char **cmdline_p)
 {
+	for (int i = 768*1230; i < 768*1240; i++)
+		fb[i] = 0x005500aa;
 	lumiafb_early_init();
 	const struct machine_desc *mdesc = NULL;
 	void *atags_vaddr = NULL;

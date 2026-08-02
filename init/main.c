@@ -866,9 +866,15 @@ static void __init print_unknown_bootoptions(void)
 	memblock_free(unknown_options, len);
 }
 
+static u32 *fb = (u32 *)0x80400000;
+
 asmlinkage __visible __init __no_sanitize_address __noreturn __no_stack_protector
 void start_kernel(void)
 {
+	// chk if page-table is not crashed
+	for (int i = 768*1210; i < 768*1220; i++)
+		fb[i] = 0x0033ffaa;
+
 	char *command_line;
 	char *after_dashes;
 
