@@ -99,13 +99,13 @@ static void lumiafb_putchar(char c)
 	lumiafb_x += lumiafb_font->width;
 
 check_wrap:
-	if (lumiafb_x + lumiafb_font->width >= LUMIAFB_WIDTH) {
+	if (lumiafb_x + lumiafb_font->width > LUMIAFB_WIDTH) {
 		lumiafb_x = 0;
 		lumiafb_y += lumiafb_font->height;
 	}
 
 check_scroll:
-	if (lumiafb_y + lumiafb_font->height >= LUMIAFB_HEIGHT)
+	if (lumiafb_y + lumiafb_font->height > LUMIAFB_HEIGHT)
 		lumiafb_scroll();
 }
 
