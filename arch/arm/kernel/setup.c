@@ -1103,6 +1103,7 @@ static struct notifier_block arm_restart_nb = {
 
 void __init setup_arch(char **cmdline_p)
 {
+	lumiafb_early_init();
 	const struct machine_desc *mdesc = NULL;
 	void *atags_vaddr = NULL;
 
@@ -1142,7 +1143,6 @@ void __init setup_arch(char **cmdline_p)
 
 	early_fixmap_init();
 	early_ioremap_init();
-	lumiafb_early_init();
 
 	parse_early_param();
 

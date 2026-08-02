@@ -18,15 +18,15 @@
 #define LUMIAFB_BGRA_BLACK	0xff000000U
 #define LUMIAFB_BGRA_WHITE	0xffffffffU
 
-static void __iomem *lumiafb_base;
+static u8 __iomem *fb_raw = (u8 __iomem *)LUMIAFB_PHYS; // use identity mapping
+static u32 __iomem *fb = (u32 __iomem *)LUMIAFB_PHYS;
+
 static const struct font_desc *lumiafb_font = &font_vga_8x16;
 static unsigned int lumiafb_x;
 static unsigned int lumiafb_y;
 
 static inline void lumiafb_plot(u32 x, u32 y, u32 color)
 {
-	u32 __iomem *fb = lumiafb_base;
-
 	if (x >= LUMIAFB_WIDTH || y >= LUMIAFB_HEIGHT)
 		return;
 
@@ -45,8 +45,8 @@ static void lumiafb_clear(void)
 
 static void lumiafb_scroll(void)
 {
-	memmove(lumiafb_base,
-		lumiafb_base + lumiafb_font->height * LUMIAFB_STRIDE,
+	memmove(fb_raw,
+		fb_raw + lumiafb_font->height * LUMIAFB_STRIDE,
 		(LUMIAFB_HEIGHT - lumiafb_font->height) * LUMIAFB_STRIDE);
 
 	for (; lumiafb_y < LUMIAFB_HEIGHT; lumiafb_y++) {
@@ -114,9 +114,6 @@ static void lumiafb_write(struct console *con, const char *s,
 {
 	unsigned int i;
 
-	if (!lumiafb_base)
-		return;
-
 	for (i = 0; i < count; i++)
 		lumiafb_putchar(s[i]);
 }
@@ -130,13 +127,6 @@ static struct console lumiafb_console = {
 
 void __init lumiafb_early_init(void)
 {
-	if (lumiafb_base)
-		return;
-
-	lumiafb_base = early_ioremap(LUMIAFB_PHYS, LUMIAFB_SIZE);
-	if (!lumiafb_base)
-		return;
-
 	lumiafb_clear();
 	register_console(&lumiafb_console);
 	pr_info("lumiafb: early BGRA console at 0x%08x\n",

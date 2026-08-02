@@ -1766,7 +1766,7 @@ void __init paging_init(const struct machine_desc *mdesc)
 	pr_debug("physical kernel sections: 0x%08llx-0x%08llx\n",
 		 kernel_sec_start, kernel_sec_end);
 
-	prepare_page_table();
+	//prepare_page_table();
 	map_lowmem();
 	memblock_set_current_limit(arm_lowmem_limit);
 	pr_debug("lowmem limit is %08llx\n", (long long)arm_lowmem_limit);
