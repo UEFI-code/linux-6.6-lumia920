@@ -1447,19 +1447,19 @@ static int __ref kernel_init(void *unused)
 	/* need to finish all async __init code before freeing the memory */
 	async_synchronize_full();
 
-	system_state = SYSTEM_FREEING_INITMEM;
-	kprobe_free_init_mem();
-	ftrace_free_init_mem();
-	kgdb_free_init_mem();
-	exit_boot_config();
-	free_initmem();
-	mark_readonly();
+	//system_state = SYSTEM_FREEING_INITMEM;
+	//kprobe_free_init_mem();
+	//ftrace_free_init_mem();
+	//kgdb_free_init_mem();
+	//exit_boot_config();
+	//free_initmem();
+	//mark_readonly();
 
 	/*
 	 * Kernel mappings are now finalized - update the userspace page-table
 	 * to finalize PTI.
 	 */
-	pti_finalize();
+	//pti_finalize();
 
 	system_state = SYSTEM_RUNNING;
 	numa_default_policy();
