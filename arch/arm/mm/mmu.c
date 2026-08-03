@@ -1313,7 +1313,15 @@ static __init void prepare_page_table(void)
 		pmd_clear(pmd_off_k(addr));
 #else
 	for (addr = 0; addr < MODULES_VADDR; addr += PMD_SIZE)
+	{
+		if (addr >= 0x80400000 && addr <= 0x807C0000)
+		{
+			printk(KERN_INFO "Hack: Skipping clearing PMD for address range %lx-%lx :)\n", addr, addr + PMD_SIZE - 1);
+			continue;
+		}
 		pmd_clear(pmd_off_k(addr));
+	}
+		
 #endif
 
 #ifdef CONFIG_XIP_KERNEL
@@ -1766,7 +1774,7 @@ void __init paging_init(const struct machine_desc *mdesc)
 	pr_debug("physical kernel sections: 0x%08llx-0x%08llx\n",
 		 kernel_sec_start, kernel_sec_end);
 
-	//prepare_page_table();
+	prepare_page_table();
 	map_lowmem();
 	memblock_set_current_limit(arm_lowmem_limit);
 	pr_debug("lowmem limit is %08llx\n", (long long)arm_lowmem_limit);
