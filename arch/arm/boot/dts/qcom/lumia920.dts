@@ -17,6 +17,11 @@
             compatible = "qcom,krait";
             reg = <0>;
         };
+        cpu@1 {
+            device_type = "cpu";
+            compatible = "qcom,krait";
+            reg = <1>;
+        };
     };
 
     memory@90000000 {
