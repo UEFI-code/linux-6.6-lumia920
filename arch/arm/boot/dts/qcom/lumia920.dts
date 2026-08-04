@@ -1,0 +1,79 @@
+/dts-v1/;
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+
+/ {
+    model = "Lumia 920 tiny";
+	compatible = "qcom,msm8960";
+
+    #address-cells = <1>;
+    #size-cells = <1>;
+
+    interrupt-parent = <&intc>;
+
+    cpus {
+        cpu@0 {
+            device_type = "cpu";
+            compatible = "qcom,krait";
+            reg = <0>;
+        };
+        cpu@1 {
+            device_type = "cpu";
+            compatible = "qcom,krait";
+            reg = <1>;
+        };
+    };
+
+    memory@90000000 {
+        device_type = "memory";
+
+        reg = <0x80800000 0x00400000>,
+              <0x81700000 0x027B2000>,
+              <0x84239000 0x0037F000>,
+              <0x845BC000 0x00004000>,
+              <0x84601000 0x047FF000>,
+              <0x90000000 0x2E6CC000>,
+              <0xBE6D5000 0x00174000>,
+              <0xBE8DA000 0x00049000>,
+              <0xBE966000 0x00040000>,
+              <0xBEA69000 0x00014000>,
+              <0xBFACD000 0x00004000>,
+              <0xBFDF7000 0x00001000>;
+    };
+
+    reserved-memory {
+        #address-cells = <1>;
+        #size-cells = <1>;
+        ranges;
+
+        framebuffer@80400000 {
+            reg = <0x80400000 0x003C0000>;
+            no-map;
+        };
+    };
+
+    intc: interrupt-controller@2000000 {
+        compatible = "qcom,msm-qgic2";
+
+        interrupt-controller;
+        #interrupt-cells = <3>;
+
+        reg =
+            <0x02000000 0x1000>,
+            <0x02002000 0x1000>;
+    };
+
+    timer@200a000 {
+        compatible =
+            "qcom,kpss-timer",
+            "qcom,msm-timer";
+        reg = <0x0200a000 0x100>;
+        interrupts = 
+            <GIC_SPI 1 IRQ_TYPE_LEVEL_HIGH>,
+            <GIC_SPI 2 IRQ_TYPE_LEVEL_HIGH>,
+            <GIC_SPI 3 IRQ_TYPE_LEVEL_HIGH>;
+        clock-frequency =
+            <27000000>,
+            <32768>;
+    };
+};
