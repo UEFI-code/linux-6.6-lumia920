@@ -126,7 +126,7 @@ static struct console lumiafb_console = {
 
 u8 lumiafb_enabled = 0;
 
-void __init lumiafb_early_init(void)
+void lumiafb_early_init(void)
 {
 	lumiafb_clear();
 	register_console(&lumiafb_console);

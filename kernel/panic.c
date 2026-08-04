@@ -266,7 +266,7 @@ static void panic_other_cpus_shutdown(bool crash_kexec)
 }
 
 extern u8 lumiafb_enabled;
-void __init lumiafb_early_init(void);
+void lumiafb_early_init(void);
 
 /**
  *	panic - halt the system

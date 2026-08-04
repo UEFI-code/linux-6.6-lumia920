@@ -63,8 +63,7 @@
 
 #include "atags.h"
 
-extern void __init lumiafb_early_init(void);
-
+void lumiafb_early_init(void);
 
 #if defined(CONFIG_FPE_NWFPE) || defined(CONFIG_FPE_FASTFPE)
 char fpe_type[8];
