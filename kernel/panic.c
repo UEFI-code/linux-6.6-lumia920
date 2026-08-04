@@ -265,6 +265,9 @@ static void panic_other_cpus_shutdown(bool crash_kexec)
 		crash_smp_send_stop();
 }
 
+extern u8 lumiafb_enabled;
+void __init lumiafb_early_init(void);
+
 /**
  *	panic - halt the system
  *	@fmt: The text string to print
@@ -275,6 +278,9 @@ static void panic_other_cpus_shutdown(bool crash_kexec)
  */
 void panic(const char *fmt, ...)
 {
+	if (!lumiafb_enabled)
+		lumiafb_early_init();
+	
 	static char buf[1024];
 	va_list args;
 	long i, i_next = 0, len;

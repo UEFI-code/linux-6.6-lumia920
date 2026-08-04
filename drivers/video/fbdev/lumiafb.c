@@ -124,15 +124,19 @@ static struct console lumiafb_console = {
 	.index = -1,
 };
 
+u8 lumiafb_enabled = 0;
+
 void __init lumiafb_early_init(void)
 {
 	lumiafb_clear();
 	register_console(&lumiafb_console);
 	pr_info("lumiafb: early BGRA console at 0x%08x\n",
 		(unsigned int)LUMIAFB_PHYS);
+	lumiafb_enabled = 1;
 }
 
 void lumiafb_early_deinit(void)
 {
     unregister_console(&lumiafb_console);
+	lumiafb_enabled = 0;
 }
