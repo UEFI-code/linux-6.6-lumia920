@@ -79,6 +79,43 @@
             <32768>;
     };
 
+    // QFPROM
+
+    qfprom: qfprom@700000 {
+        compatible = "qcom,msm8960-qfprom", "qcom,qfprom";
+        reg = <0x00700000 0x1000>;
+
+        #address-cells = <1>;
+        #size-cells = <1>;
+        ranges;
+
+        tsens_calib: calib@404 {
+            reg = <0x404 0x10>;
+        };
+
+        tsens_backup: backup_calib@414 {
+            reg = <0x414 0x10>;
+        };
+    };
+
+    // GPIO
+
+    msmgpio: pinctrl@800000 {
+        compatible = "qcom,msm8960-pinctrl";
+
+        reg = <0x00800000 0x4000>;
+
+        gpio-controller;
+        #gpio-cells = <2>;
+
+        gpio-ranges = <&msmgpio 0 0 152>;
+
+        interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
+
+        interrupt-controller;
+        #interrupt-cells = <2>;
+    };
+
     // clock sources for external devices
 
     sleep_clk: sleep-clk {
@@ -124,20 +161,82 @@
         };
     };
 
-    qfprom: qfprom@700000 {
-        compatible = "qcom,msm8960-qfprom", "qcom,qfprom";
-        reg = <0x00700000 0x1000>;
+    // PMIC
 
-        #address-cells = <1>;
-        #size-cells = <1>;
-        ranges;
+    rpm: rpm@108000 {
+        compatible = "qcom,rpm-msm8960";
+        reg = <0x00108000 0x1000>;
 
-        tsens_calib: calib@404 {
-            reg = <0x404 0x10>;
+        interrupts = <GIC_SPI 19 IRQ_TYPE_EDGE_RISING>,
+                     <GIC_SPI 21 IRQ_TYPE_EDGE_RISING>,
+                     <GIC_SPI 22 IRQ_TYPE_EDGE_RISING>;
+        interrupt-names = "ack", "err", "wakeup";
+
+        status = "okay";
+    };
+
+    ssbi@500000 {
+        compatible = "qcom,ssbi";
+        reg = <0x00500000 0x1000>;
+
+        qcom,controller-type = "pmic-arbiter";
+
+        pmicintc: pmic {
+            compatible = "qcom,pm8921";
+
+            interrupt-parent = <&msmgpio>;
+            interrupts = <104 IRQ_TYPE_LEVEL_LOW>;
+
+            interrupt-controller;
+            #interrupt-cells = <2>;
+
+            #address-cells = <1>;
+            #size-cells = <0>;
+
+            status = "okay";
         };
+    };
 
-        tsens_backup: backup_calib@414 {
-            reg = <0x414 0x10>;
+    // USB
+
+    usb1: usb@12500000 {
+        compatible = "qcom,ci-hdrc";
+        reg = <0x12500000 0x200>,
+              <0x12500200 0x200>;
+        interrupts = <GIC_SPI 100 IRQ_TYPE_LEVEL_HIGH>;
+
+        clocks = <&gcc USB_HS1_XCVR_CLK>,
+             <&gcc USB_HS1_H_CLK>;
+        clock-names = "core", "iface";
+
+        assigned-clocks = <&gcc USB_HS1_XCVR_CLK>;
+        assigned-clock-rates = <60000000>;
+
+        resets = <&gcc USB_HS1_RESET>;
+        reset-names = "core";
+
+        phy_type = "ulpi";
+        ahb-burst-config = <0>;
+
+        phys = <&usb_hs1_phy>;
+        phy-names = "usb-phy";
+
+        #reset-cells = <1>;
+        status = "disabled";
+
+        ulpi {
+            usb_hs1_phy: phy {
+                compatible = "qcom,usb-hs-phy-msm8960",
+                             "qcom,usb-hs-phy";
+
+                clocks = <&sleep_clk>, <&cxo_board>;
+                clock-names = "sleep", "ref";
+
+                resets = <&usb1 0>;
+                reset-names = "por";
+
+                #phy-cells = <0>;
+            };
         };
     };
 };
