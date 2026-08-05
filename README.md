@@ -103,7 +103,8 @@ make lumia920_defconfig
 
 ```bash
 make -j$(nproc)
-make qcom/lumia920.dtb
+make qcom/lumia920.dtb # tiny device tree
+make qcom/lumia920-simple.dtb # qcom style device tree
 ```
 
 If the compiler screams, that means it still feels alive.
@@ -117,6 +118,16 @@ If the compiler screams, that means it still feels alive.
 ✅ survived MMU
 
 ✅ framebuffer speaks
+
+🔌 GPIO awakened
+
+⚡️ PMIC responds
+
+💾 eMMC remembers
+
+🛸 USB communicates
+
+🔥 Snapdragon S4 has risen from the dead
 
 ❓ stability
 
