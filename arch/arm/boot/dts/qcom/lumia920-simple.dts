@@ -354,3 +354,8 @@
 &usb1 {
     status = "okay";
 };
+
+&usb_hs1_phy {
+	v3p3-supply = <&pm8921_l3>;
+	v1p8-supply = <&pm8921_l4>;
+};
