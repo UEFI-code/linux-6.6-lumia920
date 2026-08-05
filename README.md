@@ -125,7 +125,7 @@ If the compiler screams, that means it still feels alive.
 
 💾 eMMC remembers
 
-🛸 USB communicates
+~~🛸 USB communicates~~ Pending Dbg...
 
 🔥 Snapdragon S4 has risen from the dead
 
