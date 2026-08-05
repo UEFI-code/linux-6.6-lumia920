@@ -213,6 +213,32 @@
         };
     };
 
+    vsdcc_fixed: vsdcc-regulator {
+        compatible = "regulator-fixed";
+        regulator-name = "SDCC Power";
+        regulator-min-microvolt = <2700000>;
+        regulator-max-microvolt = <2700000>;
+        regulator-always-on;
+    };
+
+    // eMMC
+
+    sdcc1: mmc@12400000 {
+        status = "disable";
+        compatible = "arm,pl18x", "arm,primecell";
+        arm,primecell-periphid = <0x00051180>;
+        reg = <0x12400000 0x8000>;
+        interrupts = <GIC_SPI 104 IRQ_TYPE_LEVEL_HIGH>;
+        clocks = <&gcc SDC1_CLK>, <&gcc SDC1_H_CLK>;
+        clock-names = "mclk", "apb_pclk";
+        bus-width = <8>;
+        max-frequency = <96000000>;
+        non-removable;
+        cap-sd-highspeed;
+        cap-mmc-highspeed;
+        vmmc-supply = <&vsdcc_fixed>;
+    };
+
     // USB
 
     usb1: usb@12500000 {
