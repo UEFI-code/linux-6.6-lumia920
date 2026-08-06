@@ -196,9 +196,12 @@ static int ci_hdrc_msm_probe(struct platform_device *pdev)
 	if (IS_ERR(reset))
 		return PTR_ERR(reset);
 
-	ci->core_clk = clk = devm_clk_get(&pdev->dev, "core");
+	ci->core_clk = clk = devm_clk_get_optional(&pdev->dev, "core");
 	if (IS_ERR(clk))
 		return PTR_ERR(clk);
+	if (!clk)
+		dev_warn(&pdev->dev,
+			 "no core clock defined, continuing without RPM fabric clock\n");
 
 	ci->iface_clk = clk = devm_clk_get(&pdev->dev, "iface");
 	if (IS_ERR(clk))
@@ -230,9 +233,11 @@ static int ci_hdrc_msm_probe(struct platform_device *pdev)
 
 	clk_disable_unprepare(ci->fs_clk);
 
-	ret = clk_prepare_enable(ci->core_clk);
-	if (ret)
-		return ret;
+	if (ci->core_clk) {
+		ret = clk_prepare_enable(ci->core_clk);
+		if (ret)
+			return ret;
+	}
 
 	ret = clk_prepare_enable(ci->iface_clk);
 	if (ret)
@@ -270,7 +275,8 @@ static int ci_hdrc_msm_probe(struct platform_device *pdev)
 err_mux:
 	clk_disable_unprepare(ci->iface_clk);
 err_iface:
-	clk_disable_unprepare(ci->core_clk);
+	if (ci->core_clk)
+		clk_disable_unprepare(ci->core_clk);
 	return ret;
 }
 
@@ -281,7 +287,8 @@ static void ci_hdrc_msm_remove(struct platform_device *pdev)
 	pm_runtime_disable(&pdev->dev);
 	ci_hdrc_remove_device(ci->ci);
 	clk_disable_unprepare(ci->iface_clk);
-	clk_disable_unprepare(ci->core_clk);
+	if (ci->core_clk)
+		clk_disable_unprepare(ci->core_clk);
 }
 
 static const struct of_device_id msm_ci_dt_match[] = {
