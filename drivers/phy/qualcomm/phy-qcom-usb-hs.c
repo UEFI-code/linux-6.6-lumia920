@@ -112,34 +112,42 @@ static int qcom_usb_hs_phy_power_on(struct phy *phy)
 	const struct ulpi_seq *seq;
 	int ret, state;
 
-	ret = clk_prepare_enable(uphy->ref_clk);
-	if (ret)
-		return ret;
+	if (uphy->ref_clk) {
+		ret = clk_prepare_enable(uphy->ref_clk);
+		if (ret)
+			return ret;
+	}
 
-	ret = clk_prepare_enable(uphy->sleep_clk);
-	if (ret)
-		goto err_sleep;
+	if (uphy->sleep_clk) {
+		ret = clk_prepare_enable(uphy->sleep_clk);
+		if (ret)
+			goto err_sleep;
+	}
 
-	ret = regulator_set_load(uphy->v1p8, 50000);
-	if (ret < 0)
-		goto err_1p8;
+	if (uphy->v1p8) {
+		ret = regulator_set_load(uphy->v1p8, 50000);
+		if (ret < 0)
+			goto err_1p8;
 
-	ret = regulator_enable(uphy->v1p8);
-	if (ret)
-		goto err_1p8;
+		ret = regulator_enable(uphy->v1p8);
+		if (ret)
+			goto err_1p8;
+	}
 
-	ret = regulator_set_voltage_triplet(uphy->v3p3, 3050000, 3300000,
+	if (uphy->v3p3) {
+		ret = regulator_set_voltage_triplet(uphy->v3p3, 3050000, 3300000,
 					    3300000);
-	if (ret)
-		goto err_3p3;
+		if (ret)
+			goto err_3p3;
 
-	ret = regulator_set_load(uphy->v3p3, 50000);
-	if (ret < 0)
-		goto err_3p3;
+		ret = regulator_set_load(uphy->v3p3, 50000);
+		if (ret < 0)
+			goto err_3p3;
 
-	ret = regulator_enable(uphy->v3p3);
-	if (ret)
-		goto err_3p3;
+		ret = regulator_enable(uphy->v3p3);
+		if (ret)
+			goto err_3p3;
+	}
 
 	for (seq = uphy->init_seq; seq->addr; seq++) {
 		ret = ulpi_write(ulpi, ULPI_EXT_VENDOR_SPECIFIC + seq->addr,
@@ -167,13 +175,17 @@ static int qcom_usb_hs_phy_power_on(struct phy *phy)
 
 	return 0;
 err_ulpi:
-	regulator_disable(uphy->v3p3);
+	if (uphy->v3p3)
+		regulator_disable(uphy->v3p3);
 err_3p3:
-	regulator_disable(uphy->v1p8);
+	if (uphy->v1p8)
+		regulator_disable(uphy->v1p8);
 err_1p8:
-	clk_disable_unprepare(uphy->sleep_clk);
+	if (uphy->sleep_clk)
+		clk_disable_unprepare(uphy->sleep_clk);
 err_sleep:
-	clk_disable_unprepare(uphy->ref_clk);
+	if (uphy->ref_clk)
+		clk_disable_unprepare(uphy->ref_clk);
 	return ret;
 }
 
@@ -184,10 +196,14 @@ static int qcom_usb_hs_phy_power_off(struct phy *phy)
 	if (uphy->vbus_edev)
 		extcon_unregister_notifier(uphy->vbus_edev, EXTCON_USB,
 					   &uphy->vbus_notify);
-	regulator_disable(uphy->v3p3);
-	regulator_disable(uphy->v1p8);
-	clk_disable_unprepare(uphy->sleep_clk);
-	clk_disable_unprepare(uphy->ref_clk);
+	if (uphy->v3p3)
+		regulator_disable(uphy->v3p3);
+	if (uphy->v1p8)
+		regulator_disable(uphy->v1p8);
+	if (uphy->sleep_clk)
+		clk_disable_unprepare(uphy->sleep_clk);
+	if (uphy->ref_clk)
+		clk_disable_unprepare(uphy->ref_clk);
 
 	return 0;
 }
@@ -229,32 +245,36 @@ static int qcom_usb_hs_phy_probe(struct ulpi *ulpi)
 	/* NUL terminate */
 	uphy->init_seq[size / 2].addr = uphy->init_seq[size / 2].val = 0;
 
-	uphy->ref_clk = clk = devm_clk_get(&ulpi->dev, "ref");
+	uphy->ref_clk = clk = devm_clk_get_optional(&ulpi->dev, "ref");
 	if (IS_ERR(clk)) {
 		if (PTR_ERR(clk) == -EPROBE_DEFER)
 			pr_info("qcom_usb_hs_phy: deferring probe: waiting for ref clock\n");
 		return PTR_ERR(clk);
 	}
 
-	uphy->sleep_clk = clk = devm_clk_get(&ulpi->dev, "sleep");
+	uphy->sleep_clk = clk = devm_clk_get_optional(&ulpi->dev, "sleep");
 	if (IS_ERR(clk)) {
 		if (PTR_ERR(clk) == -EPROBE_DEFER)
 			pr_info("qcom_usb_hs_phy: deferring probe: waiting for sleep clock\n");
 		return PTR_ERR(clk);
 	}
 
-	uphy->v1p8 = reg = devm_regulator_get(&ulpi->dev, "v1p8");
+	uphy->v1p8 = reg = devm_regulator_get_optional(&ulpi->dev, "v1p8");
 	if (IS_ERR(reg)) {
 		if (PTR_ERR(reg) == -EPROBE_DEFER)
 			pr_info("qcom_usb_hs_phy: deferring probe: waiting for v1p8 regulator\n");
-		return PTR_ERR(reg);
+		if (PTR_ERR(reg) == -EPROBE_DEFER)
+			return PTR_ERR(reg);
+		uphy->v1p8 = NULL;
 	}
 
-	uphy->v3p3 = reg = devm_regulator_get(&ulpi->dev, "v3p3");
+	uphy->v3p3 = reg = devm_regulator_get_optional(&ulpi->dev, "v3p3");
 	if (IS_ERR(reg)) {
 		if (PTR_ERR(reg) == -EPROBE_DEFER)
 			pr_info("qcom_usb_hs_phy: deferring probe: waiting for v3p3 regulator\n");
-		return PTR_ERR(reg);
+		if (PTR_ERR(reg) == -EPROBE_DEFER)
+			return PTR_ERR(reg);
+		uphy->v3p3 = NULL;
 	}
 
 	uphy->reset = reset = devm_reset_control_get(&ulpi->dev, "por");
