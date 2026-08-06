@@ -306,7 +306,18 @@ static struct platform_driver ci_hdrc_msm_driver = {
 	},
 };
 
-module_platform_driver(ci_hdrc_msm_driver);
+static int __init ci_hdrc_msm_init(void)
+{
+	msleep(1000);
+	return platform_driver_register(&ci_hdrc_msm_driver);
+}
+late_initcall(ci_hdrc_msm_init);
+
+static void __exit ci_hdrc_msm_exit(void)
+{
+	platform_driver_unregister(&ci_hdrc_msm_driver);
+}
+module_exit(ci_hdrc_msm_exit);
 
 MODULE_ALIAS("platform:msm_hsusb");
 MODULE_ALIAS("platform:ci13xxx_msm");
