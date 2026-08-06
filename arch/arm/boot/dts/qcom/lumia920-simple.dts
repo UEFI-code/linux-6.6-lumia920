@@ -133,6 +133,7 @@
 		};
 
 		pm8921_s2: s2 {
+            regulator-always-on;
 			regulator-min-microvolt = <1300000>;
 			regulator-max-microvolt = <1300000>;
 			qcom,switch-mode-frequency = <1600000>;
@@ -140,8 +141,9 @@
 		};
 
 		pm8921_s3: s3 {
-			regulator-min-microvolt = <500000>;
-			regulator-max-microvolt = <1150000>;
+            regulator-always-on;
+			regulator-min-microvolt = <1050000>;
+			regulator-max-microvolt = <1050000>;
 			qcom,switch-mode-frequency = <4800000>;
 			bias-pull-down;
 		};
@@ -185,6 +187,7 @@
 		};
 
 		pm8921_l3: l3 {
+            regulator-always-on;
 			regulator-min-microvolt = <3075000>;
 			regulator-max-microvolt = <3075000>;
 			bias-pull-down;
@@ -277,6 +280,7 @@
 		};
 
 		pm8921_l21: l21 {
+            regulator-always-on;
 			regulator-min-microvolt = <1900000>;
 			regulator-max-microvolt = <1900000>;
 			bias-pull-down;
