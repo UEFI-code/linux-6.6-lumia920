@@ -35,6 +35,7 @@
 
 struct ci_hdrc_msm {
 	struct platform_device *ci;
+	struct clk *pmic_19m_clk;
 	struct clk *core_clk;
 	struct clk *iface_clk;
 	struct clk *fs_clk;
@@ -203,6 +204,24 @@ static int ci_hdrc_msm_probe(struct platform_device *pdev)
 		dev_warn(&pdev->dev,
 			 "no core clock defined, continuing without RPM fabric clock\n");
 
+	ci->pmic_19m_clk = clk = devm_clk_get_optional(&pdev->dev,
+						      "pmic_19M");
+	if (IS_ERR(clk))
+		return PTR_ERR(clk);
+
+	if (ci->pmic_19m_clk) {
+		ret = clk_prepare_enable(ci->pmic_19m_clk);
+		if (ret) {
+			dev_err(&pdev->dev,
+				"failed to enable pmic_19M clock: %d\n",
+				ret);
+			return ret;
+		}
+
+		dev_info(&pdev->dev,
+			 "pmic_19M clock enabled before USB PHY init\n");
+	}
+
 	ci->iface_clk = clk = devm_clk_get(&pdev->dev, "iface");
 	if (IS_ERR(clk))
 		return PTR_ERR(clk);
@@ -277,6 +296,8 @@ err_mux:
 err_iface:
 	if (ci->core_clk)
 		clk_disable_unprepare(ci->core_clk);
+	if (ci->pmic_19m_clk)
+		clk_disable_unprepare(ci->pmic_19m_clk);
 	return ret;
 }
 
@@ -289,6 +310,8 @@ static void ci_hdrc_msm_remove(struct platform_device *pdev)
 	clk_disable_unprepare(ci->iface_clk);
 	if (ci->core_clk)
 		clk_disable_unprepare(ci->core_clk);
+	if (ci->pmic_19m_clk)
+		clk_disable_unprepare(ci->pmic_19m_clk);
 }
 
 static const struct of_device_id msm_ci_dt_match[] = {

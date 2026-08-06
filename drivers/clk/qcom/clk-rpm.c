@@ -265,6 +265,9 @@ static int clk_rpm_xo_prepare(struct clk_hw *hw)
 	if (!ret) {
 		r->enabled = true;
 		rcc->xo_buffer_value = value;
+
+		if (r->xo_offset == 0)
+			pr_info("RPM XO_D0 enabled, CXO buffer value=0x%x\n", value);
 	}
 
 	mutex_unlock(&rcc->xo_lock);
