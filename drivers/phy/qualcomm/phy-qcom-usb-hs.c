@@ -230,25 +230,39 @@ static int qcom_usb_hs_phy_probe(struct ulpi *ulpi)
 	uphy->init_seq[size / 2].addr = uphy->init_seq[size / 2].val = 0;
 
 	uphy->ref_clk = clk = devm_clk_get(&ulpi->dev, "ref");
-	if (IS_ERR(clk))
+	if (IS_ERR(clk)) {
+		if (PTR_ERR(clk) == -EPROBE_DEFER)
+			pr_info("qcom_usb_hs_phy: deferring probe: waiting for ref clock\n");
 		return PTR_ERR(clk);
+	}
 
 	uphy->sleep_clk = clk = devm_clk_get(&ulpi->dev, "sleep");
-	if (IS_ERR(clk))
+	if (IS_ERR(clk)) {
+		if (PTR_ERR(clk) == -EPROBE_DEFER)
+			pr_info("qcom_usb_hs_phy: deferring probe: waiting for sleep clock\n");
 		return PTR_ERR(clk);
+	}
 
 	uphy->v1p8 = reg = devm_regulator_get(&ulpi->dev, "v1p8");
-	if (IS_ERR(reg))
+	if (IS_ERR(reg)) {
+		if (PTR_ERR(reg) == -EPROBE_DEFER)
+			pr_info("qcom_usb_hs_phy: deferring probe: waiting for v1p8 regulator\n");
 		return PTR_ERR(reg);
+	}
 
 	uphy->v3p3 = reg = devm_regulator_get(&ulpi->dev, "v3p3");
-	if (IS_ERR(reg))
+	if (IS_ERR(reg)) {
+		if (PTR_ERR(reg) == -EPROBE_DEFER)
+			pr_info("qcom_usb_hs_phy: deferring probe: waiting for v3p3 regulator\n");
 		return PTR_ERR(reg);
+	}
 
 	uphy->reset = reset = devm_reset_control_get(&ulpi->dev, "por");
 	if (IS_ERR(reset)) {
-		if (PTR_ERR(reset) == -EPROBE_DEFER)
+		if (PTR_ERR(reset) == -EPROBE_DEFER) {
+			pr_info("qcom_usb_hs_phy: deferring probe: waiting for PHY reset controller\n");
 			return PTR_ERR(reset);
+		}
 		uphy->reset = NULL;
 	}
 
@@ -259,6 +273,8 @@ static int qcom_usb_hs_phy_probe(struct ulpi *ulpi)
 
 	uphy->vbus_edev = extcon_get_edev_by_phandle(&ulpi->dev, 0);
 	if (IS_ERR(uphy->vbus_edev)) {
+		if (PTR_ERR(uphy->vbus_edev) == -EPROBE_DEFER)
+			pr_info("qcom_usb_hs_phy: deferring probe: waiting for extcon provider\n");
 		if (PTR_ERR(uphy->vbus_edev) != -ENODEV)
 			return PTR_ERR(uphy->vbus_edev);
 		uphy->vbus_edev = NULL;

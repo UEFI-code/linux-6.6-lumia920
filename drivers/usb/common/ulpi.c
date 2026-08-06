@@ -205,16 +205,34 @@ static int ulpi_read_id(struct ulpi *ulpi)
 	int ret;
 
 	/* Test the interface */
+	pr_info("ulpi: testing ULPI interface for %s\n",
+		dev_name(ulpi->dev.parent));
+
 	ret = ulpi_write(ulpi, ULPI_SCRATCH, 0xaa);
-	if (ret < 0)
+	if (ret < 0) {
+		pr_err("ulpi: scratch write failed for %s: %d\n",
+		       dev_name(ulpi->dev.parent), ret);
 		goto err;
+	}
+
+	pr_info("ulpi: scratch write ok for %s\n",
+		dev_name(ulpi->dev.parent));
 
 	ret = ulpi_read(ulpi, ULPI_SCRATCH);
-	if (ret < 0)
+	if (ret < 0) {
+		pr_err("ulpi: scratch read failed for %s: %d\n",
+		       dev_name(ulpi->dev.parent), ret);
 		return ret;
+	}
 
-	if (ret != 0xaa)
+	pr_info("ulpi: scratch read returned 0x%x for %s\n",
+		ret, dev_name(ulpi->dev.parent));
+
+	if (ret != 0xaa) {
+		pr_err("ulpi: scratch mismatch for %s: expected 0xaa got 0x%x\n",
+		       dev_name(ulpi->dev.parent), ret);
 		goto err;
+	}
 
 	ulpi->id.vendor = ulpi_read(ulpi, ULPI_VENDOR_ID_LOW);
 	ulpi->id.vendor |= ulpi_read(ulpi, ULPI_VENDOR_ID_HIGH) << 8;
@@ -222,9 +240,16 @@ static int ulpi_read_id(struct ulpi *ulpi)
 	ulpi->id.product = ulpi_read(ulpi, ULPI_PRODUCT_ID_LOW);
 	ulpi->id.product |= ulpi_read(ulpi, ULPI_PRODUCT_ID_HIGH) << 8;
 
+	pr_info("ulpi: detected PHY vendor=%04x product=%04x for %s\n",
+		ulpi->id.vendor, ulpi->id.product,
+		dev_name(ulpi->dev.parent));
+
 	/* Some ULPI devices don't have a vendor id so rely on OF match */
-	if (ulpi->id.vendor == 0)
+	if (ulpi->id.vendor == 0) {
+		pr_warn("ulpi: vendor id is zero for %s, falling back to OF match\n",
+			dev_name(ulpi->dev.parent));
 		goto err;
+	}
 
 	request_module("ulpi:v%04xp%04x", ulpi->id.vendor, ulpi->id.product);
 	return 0;

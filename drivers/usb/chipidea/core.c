@@ -1067,6 +1067,7 @@ static int ci_hdrc_probe(struct platform_device *pdev)
 		ci->phy = devm_phy_get(dev->parent, "usb-phy");
 
 		if (PTR_ERR(ci->phy) == -EPROBE_DEFER) {
+			pr_info("deferring probe: waiting for generic USB PHY provider\n");
 			ret = -EPROBE_DEFER;
 			goto ulpi_exit;
 		} else if (IS_ERR(ci->phy)) {
@@ -1079,6 +1080,7 @@ static int ci_hdrc_probe(struct platform_device *pdev)
 								  "phys", 0);
 
 			if (PTR_ERR(ci->usb_phy) == -EPROBE_DEFER) {
+				pr_info("deferring probe: waiting for USB PHY phandle provider\n");
 				ret = -EPROBE_DEFER;
 				goto ulpi_exit;
 			} else if (IS_ERR(ci->usb_phy)) {
@@ -1092,6 +1094,7 @@ static int ci_hdrc_probe(struct platform_device *pdev)
 						       USB_PHY_TYPE_USB2);
 
 			if (PTR_ERR(ci->usb_phy) == -EPROBE_DEFER) {
+				pr_info("deferring probe: waiting for legacy USB2 PHY\n");
 				ret = -EPROBE_DEFER;
 				goto ulpi_exit;
 			} else if (IS_ERR(ci->usb_phy)) {
