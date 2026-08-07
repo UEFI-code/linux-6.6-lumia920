@@ -143,6 +143,15 @@ If the compiler screams, that means it still feels alive.
 
 ⚠ ancient Qcom magic remains unexplained
 
+## Unfortunately, it is also hungry
+
+⚠ RPM / clock configuration still needs work
+⚠ MSM8960 consumes power like a small collapsing star
+
+🔋 the 2000 mAh battery achieves approximately one hour of survival before being drained into another dimension
+
+🔌 sometimes even the USB cable cannot feed the resurrected Snapdragon fast enough — the motherboard starts siphoning power directly from the battery like a dying cyberpunk life-support machine
+
 ---
 
 ## ☣ DISCLAIMER ☣
