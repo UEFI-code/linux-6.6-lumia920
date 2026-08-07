@@ -129,6 +129,10 @@ If the compiler screams, that means it still feels alive.
 
 🔥 Snapdragon S4 has risen from the dead
 
+🌐 USB RNDIS online — the zombie phone now speaks Ethernet over a charging cable
+
+🔐 dropbear SSH alive — remote shell access achieved on a phone Microsoft abandoned a geological era ago
+
 ❓ stability
 
 ❓ longevity of this ancient phone
