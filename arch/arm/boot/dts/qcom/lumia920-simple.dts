@@ -2,6 +2,7 @@
 #include <dt-bindings/input/input.h>
 
 #include "qcom-msm8960.dtsi"
+#include "pm8921.dtsi"
 
 / {
 	model = "Nokia Lumia 920";
@@ -56,7 +57,7 @@
 	status = "okay";
 };
 
-&pmicintc {
+&pm8921 {
 	keypad@148 {
 		linux,keymap = <
 			MATRIX_KEY(0, 0, KEY_VOLUMEUP)
