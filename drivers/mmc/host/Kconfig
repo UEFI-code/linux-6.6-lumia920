@@ -371,6 +371,13 @@ config MMC_SDHCI_SPEAR
 
 	  If unsure, say N.
 
+config EASY_MMC_DRV
+	tristate "Minimal MMCI polling-only driver"
+	depends on ARM || ARM64
+	help
+	  Small bring-up oriented MMCI/eMMC host.
+	  Uses direct register polling only, without IRQ or DMA.
+
 config MMC_SDHCI_S3C_DMA
 	bool "DMA support on S3C SDHCI"
 	depends on MMC_SDHCI_S3C
