@@ -572,7 +572,7 @@ static int mmci_poll_probe(struct platform_device *pdev)
 	mmc->max_blk_count = 2048;
 	mmc->max_req_size = 1024 * 1024;
 	mmc->max_seg_size = mmc->max_req_size;
-	mmc->max_segs = 1;
+	mmc->max_segs = 16;
 
 	ret = mmc_add_host(mmc);
 	if (ret)
