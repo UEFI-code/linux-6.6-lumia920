@@ -102,6 +102,7 @@ make lumia920_defconfig
 ### 4. build the monster
 
 ```bash
+scripts/config --disable CONFIG_LOCALVERSION_AUTO
 make -j$(nproc)
 make qcom/lumia920.dtb # tiny device tree
 make qcom/lumia920-simple.dtb # qcom style device tree
