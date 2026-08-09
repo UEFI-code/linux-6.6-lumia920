@@ -45,49 +45,6 @@ static int mmci_poll_wait(struct mmci_poll_host *host, u32 mask, u32 *status)
 	return -ETIMEDOUT;
 }
 
-static int mmci_poll_wait_ready(struct mmci_poll_host *host)
-{
-	unsigned int timeout = MMCI_POLL_TIMEOUT_US;
-	u32 status, r1;
-
-	while (timeout--) {
-		writel(0xffffffff, host->base + MMCICLEAR);
-		writel(1 << 16, host->base + MMCIARGUMENT);
-		writel(MCI_CPSM_ENABLE |
-		       MCI_CPSM_RESPONSE |
-		       MMC_SEND_STATUS,
-		       host->base + MMCICOMMAND);
-
-		if (mmci_poll_wait(host,
-				   MCI_CMDRESPEND |
-				   MCI_CMDTIMEOUT |
-				   MCI_CMDCRCFAIL,
-				   &status))
-			return -ETIMEDOUT;
-
-		if (status & (MCI_CMDTIMEOUT | MCI_CMDCRCFAIL))
-			return -EIO;
-
-		r1 = readl(host->base + MMCIRESPONSE0);
-
-		//pr_info("mmci-poll: busy poll r1=%08x\n", r1);
-
-		/*
-		 * MSM8960/SDCC4 does not always transition cleanly back to
-		 * TRAN after CMD12. Some eMMC parts remain reporting RCV
-		 * while simultaneously asserting READY_FOR_DATA.
-		 */
-		if ((r1 & R1_READY_FOR_DATA) &&
-		    R1_CURRENT_STATE(r1) != R1_STATE_PRG)
-			return 0;
-
-		udelay(10);
-	}
-
-	pr_err("mmci-poll: card never became ready\n");
-	return -ETIMEDOUT;
-}
-
 static u32 mmci_poll_datactrl(struct mmc_data *data)
 {
 	u32 ctrl = MCI_DPSM_ENABLE | (data->blksz << 4);
@@ -487,17 +444,6 @@ static void mmci_poll_request(struct mmc_host *mmc,
 		if (ret) {
 			pr_err("mmci-poll: stop command failed %d\n", ret);
 			goto done;
-		}
-	}
-
-	if (mrq->data &&
-	    !mrq->data->error &&
-	    (mrq->data->flags & MMC_DATA_WRITE)) {
-		ret = mmci_poll_wait_ready(host);
-
-		if (ret) {
-			pr_err("mmci-poll: write busy wait failed %d\n", ret);
-			mrq->data->error = ret;
 		}
 	}
 
