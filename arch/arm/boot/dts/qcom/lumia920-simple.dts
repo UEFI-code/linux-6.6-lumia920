@@ -73,8 +73,14 @@
 */
 
 /* eMMC */
-&sdcc1 {
-	status = "okay";
+&soc {
+    easy_emmc@12400000 {
+        status = "okay";
+        compatible = "qcom,msm8960-easy-mmc";
+        reg = <0x12400000 0x8000>;
+        clocks = <&gcc SDC1_CLK>, <&gcc SDC1_H_CLK>;
+        clock-names = "mclk", "apb_pclk";
+    };
 };
 
 // usb1
