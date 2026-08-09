@@ -395,15 +395,7 @@ static void mmci_poll_request(struct mmc_host *mmc,
 			mrq->data->blocks,
 			mrq->data->blksz);
 
-		/*
-		 * QCOM ordering:
-		 *   read  -> DATACTRL before command
-		 *   write -> DATACTRL after command
-		 */
-		if (mrq->data->flags & MMC_DATA_READ) {
-			writel(datactrl, host->base + MMCIDATACTRL);
-			udelay(10);
-		}
+		writel(datactrl, host->base + MMCIDATACTRL);
 	}
 
 	writel(cmd->arg, host->base + MMCIARGUMENT);
@@ -455,36 +447,12 @@ static void mmci_poll_request(struct mmc_host *mmc,
 	cmd->resp[2] = readl(host->base + MMCIRESPONSE2);
 	cmd->resp[3] = readl(host->base + MMCIRESPONSE3);
 
-	/*
-	 * Hack CMD13 RCV->TRAN before mmc core sees the response.
-	 */
-	if (cmd->opcode == MMC_SEND_STATUS &&
-	    (cmd->resp[0] & R1_READY_FOR_DATA) &&
-	    R1_CURRENT_STATE(cmd->resp[0]) == R1_STATE_RCV) {
-		u32 old = cmd->resp[0];
-
-		cmd->resp[0] &= ~0x1e00;
-		cmd->resp[0] |= R1_STATE_TRAN << 9;
-
-		pr_warn("mmci-poll: hacked CMD13 resp %08x -> %08x\n",
-			old, cmd->resp[0]);
-	}
-
 	pr_info("mmci-poll: CMD%d resp=%08x %08x %08x %08x\n",
 		cmd->opcode,
 		cmd->resp[0],
 		cmd->resp[1],
 		cmd->resp[2],
 		cmd->resp[3]);
-
-	if (mrq->data && (mrq->data->flags & MMC_DATA_WRITE)) {
-		u32 datactrl = mmci_poll_datactrl(mrq->data);
-
-		pr_info("mmci-poll: write datactrl=%08x\n", datactrl);
-
-		writel(datactrl, host->base + MMCIDATACTRL);
-		udelay(10);
-	}
 
 	if (mrq->data) {
 		pr_info("mmci-poll: CMD%d data transfer blocks=%u blksz=%u flags=%08x\n",
