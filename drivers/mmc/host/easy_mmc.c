@@ -100,6 +100,81 @@ static u32 mmci_poll_datactrl(struct mmc_data *data)
 	return ctrl;
 }
 
+static int mmci_poll_stop(struct mmci_poll_host *host,
+                          struct mmc_command *stop)
+{
+    u32 status;
+    u32 cmdreg;
+    int ret;
+
+    if (!stop)
+        return 0;
+
+    /*
+     * CMD12: STOP_TRANSMISSION
+     *
+     * No data phase.
+     * R1 response.
+     */
+    cmdreg = MCI_CPSM_ENABLE |
+             stop->opcode |
+             MCI_CPSM_RESPONSE;
+
+    /*
+     * Don't leave the previous CPSM command active.
+     */
+    if (readl(host->base + MMCICOMMAND) & MCI_CPSM_ENABLE) {
+        writel(0, host->base + MMCICOMMAND);
+        udelay(2);
+    }
+
+    writel(0xffffffff, host->base + MMCICLEAR);
+
+    writel(stop->arg, host->base + MMCIARGUMENT);
+    writel(cmdreg, host->base + MMCICOMMAND);
+
+    pr_info("mmci-poll: STOP CMD%d arg=%08x cmdreg=%08x\n",
+            stop->opcode, stop->arg, cmdreg);
+
+    ret = mmci_poll_wait(host,
+                         MCI_CMDRESPEND |
+                         MCI_CMDSENT |
+                         MCI_CMDTIMEOUT |
+                         MCI_CMDCRCFAIL,
+                         &status);
+
+    if (ret) {
+        pr_err("mmci-poll: STOP CMD%d timeout status=%08x\n",
+               stop->opcode,
+               readl(host->base + MMCISTATUS));
+        stop->error = ret;
+        return ret;
+    }
+
+    if (status & MCI_CMDTIMEOUT) {
+        stop->error = -ETIMEDOUT;
+        return -ETIMEDOUT;
+    }
+
+    if ((status & MCI_CMDCRCFAIL) &&
+        (stop->flags & MMC_RSP_CRC)) {
+        stop->error = -EIO;
+        return -EIO;
+    }
+
+    stop->resp[0] = readl(host->base + MMCIRESPONSE0);
+    stop->resp[1] = readl(host->base + MMCIRESPONSE1);
+    stop->resp[2] = readl(host->base + MMCIRESPONSE2);
+    stop->resp[3] = readl(host->base + MMCIRESPONSE3);
+
+    stop->error = 0;
+
+    pr_info("mmci-poll: STOP CMD%d resp=%08x\n",
+            stop->opcode, stop->resp[0]);
+
+    return 0;
+}
+
 static int mmci_poll_xfer(struct mmci_poll_host *host,
 			  struct mmc_data *data)
 {
@@ -429,6 +504,21 @@ static void mmci_poll_request(struct mmc_host *mmc,
 			cmd->opcode,
 			mrq->data->error,
 			mrq->data->bytes_xfered);
+	}
+
+	/*
+	* Multi-block transfer termination.
+	*
+	* CMD25 / CMD18 require CMD12 when the request has
+	* a stop command.
+	*/
+	if (mrq->stop && mrq->data) {
+		ret = mmci_poll_stop(host, mrq->stop);
+
+		if (ret) {
+			pr_err("mmci-poll: stop command failed %d\n", ret);
+			goto done;
+		}
 	}
 
 	if (mrq->data &&
