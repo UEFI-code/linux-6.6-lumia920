@@ -31,33 +31,38 @@ struct mmci_poll_host {
 	struct clk *pclk;
 };
 
-static int mmci_poll_wait(struct mmci_poll_host *host,
-			  u32 mask,
-			  u32 *status);
+static int mmci_poll_wait(struct mmci_poll_host *host, u32 mask, u32 *status)
+{
+	unsigned int timeout = MMCI_POLL_TIMEOUT_US;
+
+	while (timeout--) {
+		*status = readl(host->base + MMCISTATUS);
+		if (*status & mask)
+			return 0;
+		udelay(1);
+	}
+
+	return -ETIMEDOUT;
+}
 
 static int mmci_poll_wait_ready(struct mmci_poll_host *host)
 {
 	unsigned int timeout = MMCI_POLL_TIMEOUT_US;
-	u32 status;
-	u32 cmdreg;
-	u32 r1;
+	u32 status, r1;
 
 	while (timeout--) {
 		writel(0xffffffff, host->base + MMCICLEAR);
-
 		writel(1 << 16, host->base + MMCIARGUMENT);
-
-		cmdreg = MCI_CPSM_ENABLE |
-			 MCI_CPSM_RESPONSE |
-			 MMC_SEND_STATUS;
-
-		writel(cmdreg, host->base + MMCICOMMAND);
+		writel(MCI_CPSM_ENABLE |
+		       MCI_CPSM_RESPONSE |
+		       MMC_SEND_STATUS,
+		       host->base + MMCICOMMAND);
 
 		if (mmci_poll_wait(host,
-					   MCI_CMDRESPEND |
-					   MCI_CMDTIMEOUT |
-					   MCI_CMDCRCFAIL,
-					   &status))
+				   MCI_CMDRESPEND |
+				   MCI_CMDTIMEOUT |
+				   MCI_CMDCRCFAIL,
+				   &status))
 			return -ETIMEDOUT;
 
 		if (status & (MCI_CMDTIMEOUT | MCI_CMDCRCFAIL))
@@ -71,66 +76,42 @@ static int mmci_poll_wait_ready(struct mmci_poll_host *host)
 		 * MSM8960/SDCC4 does not always transition cleanly back to
 		 * TRAN after CMD12. Some eMMC parts remain reporting RCV
 		 * while simultaneously asserting READY_FOR_DATA.
-		 *
-		 * Treat any READY_FOR_DATA state except PRG as writable-ready
-		 * to avoid getting stuck forever polling CMD13 with r1=0x0d00.
 		 */
 		if ((r1 & R1_READY_FOR_DATA) &&
-		    (R1_CURRENT_STATE(r1) != R1_STATE_PRG))
+		    R1_CURRENT_STATE(r1) != R1_STATE_PRG)
 			return 0;
 
 		udelay(10);
 	}
 
 	pr_err("mmci-poll: card never became ready\n");
-
-	return -ETIMEDOUT;
-}
-
-static int mmci_poll_wait(struct mmci_poll_host *host, u32 mask, u32 *status)
-{
-	unsigned int timeout = MMCI_POLL_TIMEOUT_US;
-
-	while (timeout--) {
-		*status = readl(host->base + MMCISTATUS);
-
-		if (*status & mask)
-			return 0;
-
-		udelay(1);
-	}
-
 	return -ETIMEDOUT;
 }
 
 static u32 mmci_poll_datactrl(struct mmc_data *data)
 {
-	u32 datactrl = MCI_DPSM_ENABLE;
-
-	datactrl |= data->blksz << 4;
+	u32 ctrl = MCI_DPSM_ENABLE | (data->blksz << 4);
 
 	if (data->flags & MMC_DATA_READ)
-		datactrl |= MCI_DPSM_DIRECTION;
+		ctrl |= MCI_DPSM_DIRECTION;
 	else
-		datactrl |= MCI_DPSM_QCOM_DATA_PEND;
+		ctrl |= MCI_DPSM_QCOM_DATA_PEND;
 
-	return datactrl;
+	return ctrl;
 }
 
 static int mmci_poll_xfer(struct mmci_poll_host *host,
-				  struct mmc_data *data)
+			  struct mmc_data *data)
 {
 	struct scatterlist *sg;
+	unsigned int timeout;
+	int i, words;
 	u32 *buf;
 	u32 status;
-	unsigned int timeout;
-	int i;
-	int words;
 
 	/*
 	 * QCOM SDCC4 starts the data phase noticeably later than the
-	 * command response phase. Wait for the RX state machine to enter
-	 * active/data-available state before declaring FIFO timeout.
+	 * command response phase.
 	 */
 	timeout = MMCI_POLL_TIMEOUT_US;
 	while (timeout--) {
@@ -156,7 +137,7 @@ static int mmci_poll_xfer(struct mmci_poll_host *host,
 		buf = sg_virt(sg);
 		words = sg->length >> 2;
 
-		while (words--) {
+		while (words) {
 			if (data->flags & MMC_DATA_READ) {
 				if (mmci_poll_wait(host,
 						   MCI_RXFIFOHALFFULL |
@@ -164,8 +145,7 @@ static int mmci_poll_xfer(struct mmci_poll_host *host,
 						   MCI_DATATIMEOUT |
 						   MCI_DATACRCFAIL |
 						   MCI_RXOVERRUN,
-						   &status))
-				{
+						   &status)) {
 					status = readl(host->base + MMCISTATUS);
 					pr_err("mmci-poll: RX wait timeout status=%08x\n",
 					       status);
@@ -187,14 +167,12 @@ static int mmci_poll_xfer(struct mmci_poll_host *host,
 						*buf++ = readl(host->base + MMCIFIFO);
 						words--;
 					}
-
-					words++;
 				} else {
 					*buf++ = readl(host->base + MMCIFIFO);
+					words--;
 				}
 			} else {
-				u32 datacnt;
-				u32 fifocnt;
+				u32 datacnt, fifocnt;
 
 				if (mmci_poll_wait(host,
 						   MCI_TXFIFOHALFEMPTY |
@@ -202,8 +180,7 @@ static int mmci_poll_xfer(struct mmci_poll_host *host,
 						   MCI_DATATIMEOUT |
 						   MCI_DATACRCFAIL |
 						   MCI_TXUNDERRUN,
-						   &status))
-				{
+						   &status)) {
 					pr_err("mmci-poll: TX wait timeout status=%08x datacnt=%08x fifocnt=%08x\n",
 					       readl(host->base + MMCISTATUS),
 					       readl(host->base + MMCIDATACNT),
@@ -215,41 +192,29 @@ static int mmci_poll_xfer(struct mmci_poll_host *host,
 				fifocnt = readl(host->base + MMCIFIFOCNT);
 
 				pr_info("mmci-poll: TX status=%08x datacnt=%08x fifocnt=%08x words=%d\n",
-					status,
-					datacnt,
-					fifocnt,
-					words + 1);
+					status, datacnt, fifocnt, words + 1);
 
 				if (status & (MCI_DATATIMEOUT |
 					      MCI_DATACRCFAIL |
-					      MCI_TXUNDERRUN))
-				{
+					      MCI_TXUNDERRUN)) {
 					pr_err("mmci-poll: TX error status=%08x datacnt=%08x fifocnt=%08x\n",
-					       status,
-					       datacnt,
-					       fifocnt);
+					       status, datacnt, fifocnt);
 					return -EIO;
 				}
 
-				/*
-				 * QCOM SDCC4 write path behaves like upstream PIO mode:
-				 * feed the FIFO as soon as HALFEMPTY becomes asserted
-				 * instead of waiting for a completely empty FIFO.
-				 *
-				 * Also push a burst when HALFEMPTY is asserted. Single
-				 * word writes are too slow on MSM8960 and can leave the
-				 * controller starved, causing write completion failures.
-				 */
 				if (status & MCI_TXFIFOHALFEMPTY) {
 					int burst = min(words + 1, 8);
 
 					pr_info("mmci-poll: TX burst=%d\n", burst);
 
-					while (burst--) {
+					while (burst--)
+					{
 						writel(*buf++, host->base + MMCIFIFO);
+						words--;
 					}
 				} else {
 					writel(*buf++, host->base + MMCIFIFO);
+					words--;
 				}
 			}
 		}
@@ -275,41 +240,10 @@ static int mmci_poll_xfer(struct mmci_poll_host *host,
 	}
 
 	if (!(status & (MCI_DATAEND |
-			 MCI_DATATIMEOUT |
-			 MCI_DATACRCFAIL))) {
-		u32 datacnt;
-		u32 fifocnt;
-		u32 fifo;
+			MCI_DATATIMEOUT |
+			MCI_DATACRCFAIL))) {
 
-		datacnt = readl(host->base + MMCIDATACNT);
 		status = readl(host->base + MMCISTATUS);
-		fifocnt = readl(host->base + MMCIFIFOCNT);
-
-		/*
-		 * Match upstream QCOM PIO behavior more closely.
-		 *
-		 * MSM8960 occasionally finishes the transfer without ever
-		 * asserting DATAEND. At this point RXACTIVE already dropped
-		 * and only a single stale byte remains accounted in DATACNT.
-		 *
-		 * Drain a final FIFO word if one is still present and accept
-		 * completion once the data state machine is idle.
-		 */
-		if (!(status & MCI_RXACTIVE) && datacnt <= 1) {
-			if (!(status & MCI_RXFIFOEMPTY) && fifocnt) {
-				fifo = readl(host->base + MMCIFIFO);
-				pr_info("mmci-poll: drained final fifo word=%08x fifocnt=%u\n",
-					fifo,
-					fifocnt);
-			}
-
-			pr_warn("mmci-poll: missing DATAEND, forcing completion status=%08x datacnt=%u\n",
-				 status,
-				 datacnt);
-
-			data->bytes_xfered = data->blocks * data->blksz;
-			return 0;
-		}
 
 		pr_err("mmci-poll: DATAEND timeout status=%08x\n",
 		       readl(host->base + MMCISTATUS));
@@ -317,8 +251,7 @@ static int mmci_poll_xfer(struct mmci_poll_host *host,
 	}
 
 	if (status & (MCI_DATATIMEOUT | MCI_DATACRCFAIL)) {
-		pr_err("mmci-poll: DATAEND error status=%08x\n",
-		       status);
+		pr_err("mmci-poll: DATAEND error status=%08x\n", status);
 		return -EIO;
 	}
 
@@ -328,12 +261,11 @@ static int mmci_poll_xfer(struct mmci_poll_host *host,
 		readl(host->base + MMCIFIFOCNT));
 
 	data->bytes_xfered = data->blocks * data->blksz;
-
 	return 0;
 }
 
 static void mmci_poll_request(struct mmc_host *mmc,
-				      struct mmc_request *mrq)
+			      struct mmc_request *mrq)
 {
 	struct mmci_poll_host *host = mmc_priv(mmc);
 	struct mmc_command *cmd = mrq->cmd;
@@ -359,20 +291,12 @@ static void mmci_poll_request(struct mmc_host *mmc,
 	if (cmd->flags & MMC_RSP_136)
 		cmdreg |= MCI_CPSM_LONGRSP;
 
-	/*
-	 * Qualcomm MMCI requires DATCMD for commands carrying a data
-	 * phase (CMD8 EXT_CSD, reads, writes, etc).
-	 *
-	 * Upstream mmci.c sets variant->data_cmd_enable which maps to
-	 * MCI_CPSM_QCOM_DATCMD.
-	 */
 	if (mrq->data)
 		cmdreg |= MCI_CPSM_QCOM_DATCMD;
 
 	/*
-	 * PL18x/Qualcomm CPSM occasionally wedges if a previous command
-	 * leaves CPSM enabled. Match upstream mmci.c behavior and hard
-	 * stop CPSM before issuing a new command.
+	 * PL18x/Qualcomm CPSM can wedge if a previous command leaves
+	 * CPSM enabled.
 	 */
 	if (readl(host->base + MMCICOMMAND) & MCI_CPSM_ENABLE) {
 		writel(0, host->base + MMCICOMMAND);
@@ -380,10 +304,7 @@ static void mmci_poll_request(struct mmc_host *mmc,
 	}
 
 	pr_info("mmci-poll: CMD%d arg=%08x flags=%08x data=%p\n",
-		cmd->opcode,
-		cmd->arg,
-		cmd->flags,
-		mrq->data);
+		cmd->opcode, cmd->arg, cmd->flags, mrq->data);
 
 	writel(0xffffffff, host->base + MMCICLEAR);
 
@@ -400,14 +321,9 @@ static void mmci_poll_request(struct mmc_host *mmc,
 			mrq->data->blksz);
 
 		/*
-		 * Match upstream qcom variant ordering:
-		 *
-		 *  - reads:  datactrl before command
-		 *  - writes: command before datactrl
-		 *
-		 * Starting DPSM before a write command on MSM8960 causes
-		 * the TX state machine to desynchronize and later fail with
-		 * generic CMD13 write I/O errors.
+		 * QCOM ordering:
+		 *   read  -> DATACTRL before command
+		 *   write -> DATACTRL after command
 		 */
 		if (mrq->data->flags & MMC_DATA_READ) {
 			writel(datactrl, host->base + MMCIDATACTRL);
@@ -419,8 +335,7 @@ static void mmci_poll_request(struct mmc_host *mmc,
 	writel(cmdreg, host->base + MMCICOMMAND);
 
 	pr_info("mmci-poll: CMD%d issued cmdreg=%08x\n",
-		cmd->opcode,
-		cmdreg);
+		cmd->opcode, cmdreg);
 
 	if (mmci_poll_wait(host,
 			   MCI_CMDRESPEND |
@@ -431,40 +346,31 @@ static void mmci_poll_request(struct mmc_host *mmc,
 		pr_err("mmci-poll: CMD%d wait timeout status=%08x\n",
 		       cmd->opcode,
 		       readl(host->base + MMCISTATUS));
-
 		cmd->error = -ETIMEDOUT;
 		goto done;
 	}
 
 	pr_info("mmci-poll: CMD%d completed status=%08x\n",
-		cmd->opcode,
-		status);
+		cmd->opcode, status);
 
 	/*
-	 * PL18x/QCOM reports R3-style responses (CMD1/CMD5/etc)
-	 * as CMDCRCFAIL because these responses intentionally carry
-	 * no CRC. Upstream mmci.c treats this as a valid response
-	 * unless MMC_RSP_CRC is requested.
+	 * R3 responses intentionally have no CRC and QCOM/PL18x can
+	 * report CMDCRCFAIL for them.
 	 */
 	if ((status & MCI_CMDCRCFAIL) &&
-	    !(cmd->flags & MMC_RSP_CRC)) {
+	    !(cmd->flags & MMC_RSP_CRC))
 		pr_info("mmci-poll: CMD%d no-crc response arrived\n",
 			cmd->opcode);
-	}
 
 	if (status & MCI_CMDTIMEOUT) {
-		pr_err("mmci-poll: CMD%d command timeout\n",
-		       cmd->opcode);
-
+		pr_err("mmci-poll: CMD%d command timeout\n", cmd->opcode);
 		cmd->error = -ETIMEDOUT;
 		goto done;
 	}
 
 	if ((status & MCI_CMDCRCFAIL) && (cmd->flags & MMC_RSP_CRC)) {
 		pr_err("mmci-poll: CMD%d crc failure status=%08x\n",
-		       cmd->opcode,
-		       status);
-
+		       cmd->opcode, status);
 		cmd->error = -EIO;
 		goto done;
 	}
@@ -479,15 +385,14 @@ static void mmci_poll_request(struct mmc_host *mmc,
 	 */
 	if (cmd->opcode == MMC_SEND_STATUS &&
 	    (cmd->resp[0] & R1_READY_FOR_DATA) &&
-	    (R1_CURRENT_STATE(cmd->resp[0]) == R1_STATE_RCV)) {
+	    R1_CURRENT_STATE(cmd->resp[0]) == R1_STATE_RCV) {
 		u32 old = cmd->resp[0];
 
 		cmd->resp[0] &= ~0x1e00;
-		cmd->resp[0] |= (R1_STATE_TRAN << 9);
+		cmd->resp[0] |= R1_STATE_TRAN << 9;
 
 		pr_warn("mmci-poll: hacked CMD13 resp %08x -> %08x\n",
-			old,
-			cmd->resp[0]);
+			old, cmd->resp[0]);
 	}
 
 	pr_info("mmci-poll: CMD%d resp=%08x %08x %08x %08x\n",
@@ -532,9 +437,7 @@ static void mmci_poll_request(struct mmc_host *mmc,
 		ret = mmci_poll_wait_ready(host);
 
 		if (ret) {
-			pr_err("mmci-poll: write busy wait failed %d\n",
-			       ret);
-
+			pr_err("mmci-poll: write busy wait failed %d\n", ret);
 			mrq->data->error = ret;
 		}
 	}
@@ -552,7 +455,7 @@ done:
 }
 
 static void mmci_poll_set_ios(struct mmc_host *mmc,
-				      struct mmc_ios *ios)
+			      struct mmc_ios *ios)
 {
 	struct mmci_poll_host *host = mmc_priv(mmc);
 	u32 clk;
@@ -564,10 +467,6 @@ static void mmci_poll_set_ios(struct mmc_host *mmc,
 		return;
 	}
 
-	/*
-	 * Match upstream Qualcomm variant behavior:
-	 * explicit mclk scaling instead of legacy PL18x divider.
-	 */
 	clk_set_rate(host->clk, ios->clock);
 
 	clk = MCI_CLK_ENABLE;
@@ -577,13 +476,6 @@ static void mmci_poll_set_ios(struct mmc_host *mmc,
 	else if (ios->bus_width == MMC_BUS_WIDTH_8)
 		clk |= MCI_QCOM_CLK_WIDEBUS_8;
 
-	/*
-	 * Upstream Qualcomm variant always enables FLOWENA and FBCLK
-	 * sampling, including during legacy identification mode.
-	 *
-	 * Original driver log:
-	 *   clkreg=00009100
-	 */
 	clk |= MCI_QCOM_CLK_FLOWENA |
 	       MCI_QCOM_CLK_SELECT_IN_FBCLK;
 
@@ -594,23 +486,14 @@ static void mmci_poll_set_ios(struct mmc_host *mmc,
 		ios->bus_width,
 		ios->timing);
 
-	/*
-	 * Qualcomm variant uses ROD instead of classic OD.
-	 * Using the wrong bit lets CMD0 work but breaks open-drain
-	 * identification commands like CMD1.
-	 */
-	if (ios->bus_mode == MMC_BUSMODE_OPENDRAIN)
-		pwr = MCI_PWR_ON | MCI_ROD;
-	else
-		pwr = MCI_PWR_ON;
+	pwr = MCI_PWR_ON;
 
-	/*
-	 * Qualcomm SDCC/eMMC init is sensitive to power sequencing.
-	 * Explicitly perform PWR_UP -> delay -> PWR_ON before enabling
-	 * clocking, otherwise CMD1 may never produce a response.
-	 */
+	if (ios->bus_mode == MMC_BUSMODE_OPENDRAIN)
+		pwr |= MCI_ROD;
+
 	writel(MCI_PWR_UP, host->base + MMCIPOWER);
 	udelay(200);
+
 	writel(pwr, host->base + MMCIPOWER);
 	udelay(200);
 
@@ -665,19 +548,9 @@ static int mmci_poll_probe(struct platform_device *pdev)
 
 	mmc->ops = &mmci_poll_ops;
 
-	/*
-	 * Lumia 920 internal storage is soldered eMMC.
-	 * This minimal bring-up driver only supports MMC mode.
-	 */
 	mmc->caps |= MMC_CAP_NONREMOVABLE;
-	mmc->caps2 |= MMC_CAP2_NO_SD;
-	mmc->caps2 |= MMC_CAP2_NO_SDIO;
+	mmc->caps2 |= MMC_CAP2_NO_SD | MMC_CAP2_NO_SDIO;
 
-	/*
-	 * Lumia 920 eMMC runs at standard 2.7V-3.6V MMC voltages.
-	 * Without OCR capabilities advertised, MMC core rejects the
-	 * card immediately after successful CMD1.
-	 */
 	mmc->ocr_avail = MMC_VDD_27_28 |
 			 MMC_VDD_28_29 |
 			 MMC_VDD_29_30 |
@@ -705,13 +578,11 @@ static int mmci_poll_probe(struct platform_device *pdev)
 	dev_info(&pdev->dev, "minimal polling MMCI enabled\n");
 	return 0;
 
+disable_mclk:
+	clk_disable_unprepare(host->clk);
 err:
 	mmc_free_host(mmc);
 	return ret;
-
-disable_mclk:
-	clk_disable_unprepare(host->clk);
-	goto err;
 }
 
 static void mmci_poll_remove(struct platform_device *pdev)
