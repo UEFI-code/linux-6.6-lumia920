@@ -141,25 +141,6 @@ static int mmci_poll_xfer(struct mmci_poll_host *host,
 	u32 *buf;
 	u32 status;
 
-	/*
-	 * QCOM SDCC4 starts the data phase noticeably later than the
-	 * command response phase.
-	 */
-	timeout = MMCI_POLL_TIMEOUT_US;
-	while (timeout--) {
-		status = readl(host->base + MMCISTATUS);
-
-		if (status & (MCI_RXACTIVE |
-			      MCI_RXDATAAVLBL |
-			      MCI_RXFIFOHALFFULL |
-			      MCI_DATATIMEOUT |
-			      MCI_DATACRCFAIL |
-			      MCI_RXOVERRUN))
-			break;
-
-		udelay(1);
-	}
-
 	// pr_info("mmci-poll: xfer entry status=%08x datacnt=%08x fifocnt=%08x\n",
 	// 	status,
 	// 	readl(host->base + MMCIDATACNT),
