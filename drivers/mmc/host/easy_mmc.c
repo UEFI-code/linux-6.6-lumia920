@@ -538,12 +538,12 @@ static void mmci_poll_set_ios(struct mmc_host *mmc,
 	clk |= MCI_QCOM_CLK_FLOWENA |
 	       MCI_QCOM_CLK_SELECT_IN_FBCLK;
 
-	// pr_info("mmci-poll: set_ios clock=%u div=%u clkreg=%08x bus_width=%u timing=%u\n",
-	// 	ios->clock,
-	// 	0,
-	// 	clk,
-	// 	ios->bus_width,
-	// 	ios->timing);
+	pr_info("mmci-poll: set_ios clock=%u div=%u clkreg=%08x bus_width=%u timing=%u\n",
+		ios->clock,
+		0,
+		clk,
+		ios->bus_width,
+		ios->timing);
 
 	pwr = MCI_PWR_ON;
 
@@ -621,7 +621,7 @@ static int mmci_poll_probe(struct platform_device *pdev)
 			 MMC_VDD_35_36;
 
 	mmc->f_min = 400000;
-	mmc->f_max = 50000000;
+	mmc->f_max = 96000000;
 	mmc->max_blk_size = 512;
 	mmc->max_blk_count = 2048;
 	mmc->max_req_size = 1024 * 1024;
