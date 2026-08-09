@@ -19,6 +19,7 @@
 #include <linux/scatterlist.h>
 
 #include <linux/mmc/host.h>
+#include <linux/mmc/mmc.h>
 
 #include "mmci.h"
 
@@ -28,8 +29,63 @@ struct mmci_poll_host {
 	void __iomem *base;
 	struct clk *clk;
 	struct clk *pclk;
-	u32 last_clk;
 };
+
+static int mmci_poll_wait(struct mmci_poll_host *host,
+			  u32 mask,
+			  u32 *status);
+
+static int mmci_poll_wait_ready(struct mmci_poll_host *host)
+{
+	unsigned int timeout = MMCI_POLL_TIMEOUT_US;
+	u32 status;
+	u32 cmdreg;
+	u32 r1;
+
+	while (timeout--) {
+		writel(0xffffffff, host->base + MMCICLEAR);
+
+		writel(1 << 16, host->base + MMCIARGUMENT);
+
+		cmdreg = MCI_CPSM_ENABLE |
+			 MCI_CPSM_RESPONSE |
+			 MMC_SEND_STATUS;
+
+		writel(cmdreg, host->base + MMCICOMMAND);
+
+		if (mmci_poll_wait(host,
+					   MCI_CMDRESPEND |
+					   MCI_CMDTIMEOUT |
+					   MCI_CMDCRCFAIL,
+					   &status))
+			return -ETIMEDOUT;
+
+		if (status & (MCI_CMDTIMEOUT | MCI_CMDCRCFAIL))
+			return -EIO;
+
+		r1 = readl(host->base + MMCIRESPONSE0);
+
+		pr_info("mmci-poll: busy poll r1=%08x\n", r1);
+
+		/*
+		 * MSM8960/SDCC4 does not always transition cleanly back to
+		 * TRAN after CMD12. Some eMMC parts remain reporting RCV
+		 * while simultaneously asserting READY_FOR_DATA.
+		 *
+		 * Treat any READY_FOR_DATA state except PRG as writable-ready
+		 * to avoid getting stuck forever polling CMD13 with r1=0x0d00.
+		 */
+		if ((r1 & R1_READY_FOR_DATA) &&
+		    (R1_CURRENT_STATE(r1) != R1_STATE_PRG))
+			return 0;
+
+		udelay(10);
+	}
+
+	pr_err("mmci-poll: card never became ready\n");
+
+	return -ETIMEDOUT;
+}
 
 static int mmci_poll_wait(struct mmci_poll_host *host, u32 mask, u32 *status)
 {
@@ -47,13 +103,26 @@ static int mmci_poll_wait(struct mmci_poll_host *host, u32 mask, u32 *status)
 	return -ETIMEDOUT;
 }
 
+static u32 mmci_poll_datactrl(struct mmc_data *data)
+{
+	u32 datactrl = MCI_DPSM_ENABLE;
+
+	datactrl |= data->blksz << 4;
+
+	if (data->flags & MMC_DATA_READ)
+		datactrl |= MCI_DPSM_DIRECTION;
+	else
+		datactrl |= MCI_DPSM_QCOM_DATA_PEND;
+
+	return datactrl;
+}
+
 static int mmci_poll_xfer(struct mmci_poll_host *host,
 				  struct mmc_data *data)
 {
 	struct scatterlist *sg;
 	u32 *buf;
 	u32 status;
-	bool saw_data = false;
 	unsigned int timeout;
 	int i;
 	int words;
@@ -89,7 +158,6 @@ static int mmci_poll_xfer(struct mmci_poll_host *host,
 
 		while (words--) {
 			if (data->flags & MMC_DATA_READ) {
-				u32 datacnt;
 				if (mmci_poll_wait(host,
 						   MCI_RXFIFOHALFFULL |
 						   MCI_RXDATAAVLBL |
@@ -98,9 +166,7 @@ static int mmci_poll_xfer(struct mmci_poll_host *host,
 						   MCI_RXOVERRUN,
 						   &status))
 				{
-					datacnt = readl(host->base + MMCIDATACNT);
 					status = readl(host->base + MMCISTATUS);
-
 					pr_err("mmci-poll: RX wait timeout status=%08x\n",
 					       status);
 					return -ETIMEDOUT;
@@ -117,8 +183,6 @@ static int mmci_poll_xfer(struct mmci_poll_host *host,
 				if (status & MCI_RXFIFOHALFFULL) {
 					int burst = min(words + 1, 8);
 
-					saw_data = true;
-
 					while (burst--) {
 						*buf++ = readl(host->base + MMCIFIFO);
 						words--;
@@ -126,37 +190,81 @@ static int mmci_poll_xfer(struct mmci_poll_host *host,
 
 					words++;
 				} else {
-					saw_data = true;
 					*buf++ = readl(host->base + MMCIFIFO);
 				}
 			} else {
+				u32 datacnt;
+				u32 fifocnt;
+
 				if (mmci_poll_wait(host,
 						   MCI_TXFIFOHALFEMPTY |
 						   MCI_TXFIFOEMPTY |
-						   MCI_TXACTIVE |
 						   MCI_DATATIMEOUT |
 						   MCI_DATACRCFAIL |
 						   MCI_TXUNDERRUN,
 						   &status))
+				{
+					pr_err("mmci-poll: TX wait timeout status=%08x datacnt=%08x fifocnt=%08x\n",
+					       readl(host->base + MMCISTATUS),
+					       readl(host->base + MMCIDATACNT),
+					       readl(host->base + MMCIFIFOCNT));
 					return -ETIMEDOUT;
+				}
+
+				datacnt = readl(host->base + MMCIDATACNT);
+				fifocnt = readl(host->base + MMCIFIFOCNT);
+
+				pr_info("mmci-poll: TX status=%08x datacnt=%08x fifocnt=%08x words=%d\n",
+					status,
+					datacnt,
+					fifocnt,
+					words + 1);
 
 				if (status & (MCI_DATATIMEOUT |
 					      MCI_DATACRCFAIL |
 					      MCI_TXUNDERRUN))
+				{
+					pr_err("mmci-poll: TX error status=%08x datacnt=%08x fifocnt=%08x\n",
+					       status,
+					       datacnt,
+					       fifocnt);
 					return -EIO;
+				}
 
 				/*
 				 * QCOM SDCC4 write path behaves like upstream PIO mode:
 				 * feed the FIFO as soon as HALFEMPTY becomes asserted
 				 * instead of waiting for a completely empty FIFO.
+				 *
+				 * Also push a burst when HALFEMPTY is asserted. Single
+				 * word writes are too slow on MSM8960 and can leave the
+				 * controller starved, causing write completion failures.
 				 */
-				writel(*buf++, host->base + MMCIFIFO);
+				if (status & MCI_TXFIFOHALFEMPTY) {
+					int burst = min(words + 1, 8);
+
+					pr_info("mmci-poll: TX burst=%d\n", burst);
+
+					while (burst--) {
+						writel(*buf++, host->base + MMCIFIFO);
+					}
+				} else {
+					writel(*buf++, host->base + MMCIFIFO);
+				}
 			}
 		}
 	}
 
-	while (1) {
+	timeout = MMCI_POLL_TIMEOUT_US;
+
+	while (timeout--) {
 		status = readl(host->base + MMCISTATUS);
+
+		if (!(timeout % 100000))
+			pr_info("mmci-poll: DATAEND wait status=%08x datacnt=%08x fifocnt=%08x\n",
+				status,
+				readl(host->base + MMCIDATACNT),
+				readl(host->base + MMCIFIFOCNT));
 
 		if (status & (MCI_DATAEND |
 			      MCI_DATATIMEOUT |
@@ -214,13 +322,10 @@ static int mmci_poll_xfer(struct mmci_poll_host *host,
 		return -EIO;
 	}
 
-	if ((data->flags & MMC_DATA_READ) && !saw_data) {
-		pr_err("mmci-poll: no RX data observed status=%08x datacnt=%08x fifocnt=%08x\n",
-		       readl(host->base + MMCISTATUS),
-		       readl(host->base + MMCIDATACNT),
-		       readl(host->base + MMCIFIFOCNT));
-		return -EIO;
-	}
+	pr_info("mmci-poll: DATAEND done status=%08x datacnt=%08x fifocnt=%08x\n",
+		status,
+		readl(host->base + MMCIDATACNT),
+		readl(host->base + MMCIFIFOCNT));
 
 	data->bytes_xfered = data->blocks * data->blksz;
 
@@ -234,6 +339,17 @@ static void mmci_poll_request(struct mmc_host *mmc,
 	struct mmc_command *cmd = mrq->cmd;
 	u32 status;
 	u32 cmdreg;
+	int ret;
+
+	cmd->error = 0;
+
+	if (mrq->data) {
+		mrq->data->error = 0;
+		mrq->data->bytes_xfered = 0;
+	}
+
+	if (mrq->stop)
+		mrq->stop->error = 0;
 
 	cmdreg = MCI_CPSM_ENABLE | cmd->opcode;
 
@@ -272,31 +388,11 @@ static void mmci_poll_request(struct mmc_host *mmc,
 	writel(0xffffffff, host->base + MMCICLEAR);
 
 	if (mrq->data) {
-		u32 datactrl = MCI_DPSM_ENABLE;
+		u32 datactrl = mmci_poll_datactrl(mrq->data);
 
 		writel(0xffffffff, host->base + MMCIDATATIMER);
 		writel(mrq->data->blocks * mrq->data->blksz,
 		       host->base + MMCIDATALENGTH);
-
-		/*
-		 * Upstream qcom_get_dctrl_cfg() uses the raw block size in
-		 * the legacy PL18x position, not the exponent encoding used
-		 * by other variants.
-		 *
-		 * For 512-byte EXT_CSD reads this becomes:
-		 *   512 << 4 = 0x2000
-		 */
-		datactrl |= mrq->data->blksz << 4;
-
-		/*
-		 * Upstream qcom_get_dctrl_cfg() does not set the Qualcomm
-		 * DATA_PEND/RX_DATA_PEND bits for normal PIO transfers.
-		 *
-		 * For polling mode on MSM8960 these bits prevent the DPSM
-		 * from ever entering RXACTIVE state, leaving FIFOCNT=0.
-		 */
-		if (mrq->data->flags & MMC_DATA_READ)
-			datactrl |= MCI_DPSM_DIRECTION;
 
 		pr_info("mmci-poll: datactrl=%08x blocks=%u blksz=%u\n",
 			datactrl,
@@ -378,6 +474,22 @@ static void mmci_poll_request(struct mmc_host *mmc,
 	cmd->resp[2] = readl(host->base + MMCIRESPONSE2);
 	cmd->resp[3] = readl(host->base + MMCIRESPONSE3);
 
+	/*
+	 * Hack CMD13 RCV->TRAN before mmc core sees the response.
+	 */
+	if (cmd->opcode == MMC_SEND_STATUS &&
+	    (cmd->resp[0] & R1_READY_FOR_DATA) &&
+	    (R1_CURRENT_STATE(cmd->resp[0]) == R1_STATE_RCV)) {
+		u32 old = cmd->resp[0];
+
+		cmd->resp[0] &= ~0x1e00;
+		cmd->resp[0] |= (R1_STATE_TRAN << 9);
+
+		pr_warn("mmci-poll: hacked CMD13 resp %08x -> %08x\n",
+			old,
+			cmd->resp[0]);
+	}
+
 	pr_info("mmci-poll: CMD%d resp=%08x %08x %08x %08x\n",
 		cmd->opcode,
 		cmd->resp[0],
@@ -386,9 +498,7 @@ static void mmci_poll_request(struct mmc_host *mmc,
 		cmd->resp[3]);
 
 	if (mrq->data && (mrq->data->flags & MMC_DATA_WRITE)) {
-		u32 datactrl = MCI_DPSM_ENABLE;
-
-		datactrl |= mrq->data->blksz << 4;
+		u32 datactrl = mmci_poll_datactrl(mrq->data);
 
 		pr_info("mmci-poll: write datactrl=%08x\n", datactrl);
 
@@ -396,32 +506,46 @@ static void mmci_poll_request(struct mmc_host *mmc,
 		udelay(10);
 	}
 
-	if (mrq->data)
-		pr_info("mmci-poll: CMD%d starting data transfer blocks=%u blksz=%u flags=%08x\n",
+	if (mrq->data) {
+		pr_info("mmci-poll: CMD%d data transfer blocks=%u blksz=%u flags=%08x\n",
 			cmd->opcode,
 			mrq->data->blocks,
 			mrq->data->blksz,
 			mrq->data->flags);
 
-	if (mrq->data)
 		pr_info("mmci-poll: data status=%08x datacnt=%08x datactrl=%08x\n",
 			readl(host->base + MMCISTATUS),
 			readl(host->base + MMCIDATACNT),
 			readl(host->base + MMCIDATACTRL));
 
-	if (mrq->data)
 		mrq->data->error = mmci_poll_xfer(host, mrq->data);
 
-	if (mrq->data)
 		pr_info("mmci-poll: CMD%d data transfer done err=%d bytes=%u\n",
 			cmd->opcode,
 			mrq->data->error,
 			mrq->data->bytes_xfered);
+	}
+
+	if (mrq->data &&
+	    !mrq->data->error &&
+	    (mrq->data->flags & MMC_DATA_WRITE)) {
+		ret = mmci_poll_wait_ready(host);
+
+		if (ret) {
+			pr_err("mmci-poll: write busy wait failed %d\n",
+			       ret);
+
+			mrq->data->error = ret;
+		}
+	}
 
 done:
-	pr_info("mmci-poll: CMD%d finished cmd_err=%d\n",
+	pr_info("mmci-poll: CMD%d finished cmd_err=%d data_err=%d stop_err=%d bytes=%u\n",
 		cmd->opcode,
-		cmd->error);
+		cmd->error,
+		mrq->data ? mrq->data->error : 0,
+		mrq->stop ? mrq->stop->error : 0,
+		mrq->data ? mrq->data->bytes_xfered : 0);
 
 	writel(0xffffffff, host->base + MMCICLEAR);
 	mmc_request_done(mmc, mrq);
@@ -490,36 +614,13 @@ static void mmci_poll_set_ios(struct mmc_host *mmc,
 	writel(pwr, host->base + MMCIPOWER);
 	udelay(200);
 
-	host->last_clk = clk;
-
 	writel(clk, host->base + MMCICLOCK);
 	udelay(200);
-}
-
-static int mmci_poll_card_busy(struct mmc_host *mmc)
-{
-	struct mmci_poll_host *host = mmc_priv(mmc);
-	u32 status;
-
-	status = readl(host->base + MMCISTATUS);
-
-	/*
-	 * Minimal bring-up driver:
-	 * MSM8960 DAT0 busy detection is unreliable until full
-	 * Qualcomm busy handling is implemented.
-	 *
-	 * Returning permanently busy causes MMC core init to abort
-	 * immediately after successful CMD1.
-	 */
-	pr_info("mmci-poll: busy status=%08x\n", status);
-
-	return 0;
 }
 
 static const struct mmc_host_ops mmci_poll_ops = {
 	.request = mmci_poll_request,
 	.set_ios = mmci_poll_set_ios,
-	.card_busy = mmci_poll_card_busy,
 };
 
 static int mmci_poll_probe(struct platform_device *pdev)
