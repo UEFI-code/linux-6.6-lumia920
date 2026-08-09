@@ -70,7 +70,7 @@ static int mmci_poll_wait_ready(struct mmci_poll_host *host)
 
 		r1 = readl(host->base + MMCIRESPONSE0);
 
-		pr_info("mmci-poll: busy poll r1=%08x\n", r1);
+		//pr_info("mmci-poll: busy poll r1=%08x\n", r1);
 
 		/*
 		 * MSM8960/SDCC4 does not always transition cleanly back to
@@ -133,8 +133,8 @@ static int mmci_poll_stop(struct mmci_poll_host *host,
     writel(stop->arg, host->base + MMCIARGUMENT);
     writel(cmdreg, host->base + MMCICOMMAND);
 
-    pr_info("mmci-poll: STOP CMD%d arg=%08x cmdreg=%08x\n",
-            stop->opcode, stop->arg, cmdreg);
+    // pr_info("mmci-poll: STOP CMD%d arg=%08x cmdreg=%08x\n",
+    //         stop->opcode, stop->arg, cmdreg);
 
     ret = mmci_poll_wait(host,
                          MCI_CMDRESPEND |
@@ -169,8 +169,8 @@ static int mmci_poll_stop(struct mmci_poll_host *host,
 
     stop->error = 0;
 
-    pr_info("mmci-poll: STOP CMD%d resp=%08x\n",
-            stop->opcode, stop->resp[0]);
+    // pr_info("mmci-poll: STOP CMD%d resp=%08x\n",
+    //         stop->opcode, stop->resp[0]);
 
     return 0;
 }
@@ -203,10 +203,10 @@ static int mmci_poll_xfer(struct mmci_poll_host *host,
 		udelay(1);
 	}
 
-	pr_info("mmci-poll: xfer entry status=%08x datacnt=%08x fifocnt=%08x\n",
-		status,
-		readl(host->base + MMCIDATACNT),
-		readl(host->base + MMCIFIFOCNT));
+	// pr_info("mmci-poll: xfer entry status=%08x datacnt=%08x fifocnt=%08x\n",
+	// 	status,
+	// 	readl(host->base + MMCIDATACNT),
+	// 	readl(host->base + MMCIFIFOCNT));
 
 	for_each_sg(data->sg, sg, data->sg_len, i) {
 		buf = sg_virt(sg);
@@ -266,8 +266,8 @@ static int mmci_poll_xfer(struct mmci_poll_host *host,
 				datacnt = readl(host->base + MMCIDATACNT);
 				fifocnt = readl(host->base + MMCIFIFOCNT);
 
-				pr_info("mmci-poll: TX status=%08x datacnt=%08x fifocnt=%08x words=%d\n",
-					status, datacnt, fifocnt, words + 1);
+				// pr_info("mmci-poll: TX status=%08x datacnt=%08x fifocnt=%08x words=%d\n",
+				// 	status, datacnt, fifocnt, words + 1);
 
 				if (status & (MCI_DATATIMEOUT |
 					      MCI_DATACRCFAIL |
@@ -280,7 +280,7 @@ static int mmci_poll_xfer(struct mmci_poll_host *host,
 				if (status & MCI_TXFIFOHALFEMPTY) {
 					int burst = min(words + 1, 8);
 
-					pr_info("mmci-poll: TX burst=%d\n", burst);
+					//pr_info("mmci-poll: TX burst=%d\n", burst);
 
 					while (burst--)
 					{
@@ -330,10 +330,10 @@ static int mmci_poll_xfer(struct mmci_poll_host *host,
 		return -EIO;
 	}
 
-	pr_info("mmci-poll: DATAEND done status=%08x datacnt=%08x fifocnt=%08x\n",
-		status,
-		readl(host->base + MMCIDATACNT),
-		readl(host->base + MMCIFIFOCNT));
+	// pr_info("mmci-poll: DATAEND done status=%08x datacnt=%08x fifocnt=%08x\n",
+	// 	status,
+	// 	readl(host->base + MMCIDATACNT),
+	// 	readl(host->base + MMCIFIFOCNT));
 
 	data->bytes_xfered = data->blocks * data->blksz;
 	return 0;
@@ -378,10 +378,11 @@ static void mmci_poll_request(struct mmc_host *mmc,
 		udelay(2);
 	}
 
-	pr_info("mmci-poll: CMD%d arg=%08x flags=%08x data=%p\n",
-		cmd->opcode, cmd->arg, cmd->flags, mrq->data);
+	// pr_info("mmci-poll: CMD%d arg=%08x flags=%08x data=%p\n",
+	// 	cmd->opcode, cmd->arg, cmd->flags, mrq->data);
 
 	writel(0xffffffff, host->base + MMCICLEAR);
+	udelay(50);
 
 	if (mrq->data) {
 		u32 datactrl = mmci_poll_datactrl(mrq->data);
@@ -390,10 +391,10 @@ static void mmci_poll_request(struct mmc_host *mmc,
 		writel(mrq->data->blocks * mrq->data->blksz,
 		       host->base + MMCIDATALENGTH);
 
-		pr_info("mmci-poll: datactrl=%08x blocks=%u blksz=%u\n",
-			datactrl,
-			mrq->data->blocks,
-			mrq->data->blksz);
+		// pr_info("mmci-poll: datactrl=%08x blocks=%u blksz=%u\n",
+		// 	datactrl,
+		// 	mrq->data->blocks,
+		// 	mrq->data->blksz);
 
 		writel(datactrl, host->base + MMCIDATACTRL);
 	}
@@ -401,8 +402,8 @@ static void mmci_poll_request(struct mmc_host *mmc,
 	writel(cmd->arg, host->base + MMCIARGUMENT);
 	writel(cmdreg, host->base + MMCICOMMAND);
 
-	pr_info("mmci-poll: CMD%d issued cmdreg=%08x\n",
-		cmd->opcode, cmdreg);
+	// pr_info("mmci-poll: CMD%d issued cmdreg=%08x\n",
+	// 	cmd->opcode, cmdreg);
 
 	if (mmci_poll_wait(host,
 			   MCI_CMDRESPEND |
@@ -417,17 +418,17 @@ static void mmci_poll_request(struct mmc_host *mmc,
 		goto done;
 	}
 
-	pr_info("mmci-poll: CMD%d completed status=%08x\n",
-		cmd->opcode, status);
+	// pr_info("mmci-poll: CMD%d completed status=%08x\n",
+	// 	cmd->opcode, status);
 
 	/*
 	 * R3 responses intentionally have no CRC and QCOM/PL18x can
 	 * report CMDCRCFAIL for them.
 	 */
-	if ((status & MCI_CMDCRCFAIL) &&
-	    !(cmd->flags & MMC_RSP_CRC))
-		pr_info("mmci-poll: CMD%d no-crc response arrived\n",
-			cmd->opcode);
+	// if ((status & MCI_CMDCRCFAIL) &&
+	//     !(cmd->flags & MMC_RSP_CRC))
+	// 	pr_info("mmci-poll: CMD%d no-crc response arrived\n",
+	// 		cmd->opcode);
 
 	if (status & MCI_CMDTIMEOUT) {
 		pr_err("mmci-poll: CMD%d command timeout\n", cmd->opcode);
@@ -447,31 +448,31 @@ static void mmci_poll_request(struct mmc_host *mmc,
 	cmd->resp[2] = readl(host->base + MMCIRESPONSE2);
 	cmd->resp[3] = readl(host->base + MMCIRESPONSE3);
 
-	pr_info("mmci-poll: CMD%d resp=%08x %08x %08x %08x\n",
-		cmd->opcode,
-		cmd->resp[0],
-		cmd->resp[1],
-		cmd->resp[2],
-		cmd->resp[3]);
+	// pr_info("mmci-poll: CMD%d resp=%08x %08x %08x %08x\n",
+	// 	cmd->opcode,
+	// 	cmd->resp[0],
+	// 	cmd->resp[1],
+	// 	cmd->resp[2],
+	// 	cmd->resp[3]);
 
 	if (mrq->data) {
-		pr_info("mmci-poll: CMD%d data transfer blocks=%u blksz=%u flags=%08x\n",
-			cmd->opcode,
-			mrq->data->blocks,
-			mrq->data->blksz,
-			mrq->data->flags);
+		// pr_info("mmci-poll: CMD%d data transfer blocks=%u blksz=%u flags=%08x\n",
+		// 	cmd->opcode,
+		// 	mrq->data->blocks,
+		// 	mrq->data->blksz,
+		// 	mrq->data->flags);
 
-		pr_info("mmci-poll: data status=%08x datacnt=%08x datactrl=%08x\n",
-			readl(host->base + MMCISTATUS),
-			readl(host->base + MMCIDATACNT),
-			readl(host->base + MMCIDATACTRL));
+		// pr_info("mmci-poll: data status=%08x datacnt=%08x datactrl=%08x\n",
+		// 	readl(host->base + MMCISTATUS),
+		// 	readl(host->base + MMCIDATACNT),
+		// 	readl(host->base + MMCIDATACTRL));
 
 		mrq->data->error = mmci_poll_xfer(host, mrq->data);
 
-		pr_info("mmci-poll: CMD%d data transfer done err=%d bytes=%u\n",
-			cmd->opcode,
-			mrq->data->error,
-			mrq->data->bytes_xfered);
+		// pr_info("mmci-poll: CMD%d data transfer done err=%d bytes=%u\n",
+		// 	cmd->opcode,
+		// 	mrq->data->error,
+		// 	mrq->data->bytes_xfered);
 	}
 
 	/*
@@ -501,12 +502,12 @@ static void mmci_poll_request(struct mmc_host *mmc,
 	}
 
 done:
-	pr_info("mmci-poll: CMD%d finished cmd_err=%d data_err=%d stop_err=%d bytes=%u\n",
-		cmd->opcode,
-		cmd->error,
-		mrq->data ? mrq->data->error : 0,
-		mrq->stop ? mrq->stop->error : 0,
-		mrq->data ? mrq->data->bytes_xfered : 0);
+	// pr_info("mmci-poll: CMD%d finished cmd_err=%d data_err=%d stop_err=%d bytes=%u\n",
+	// 	cmd->opcode,
+	// 	cmd->error,
+	// 	mrq->data ? mrq->data->error : 0,
+	// 	mrq->stop ? mrq->stop->error : 0,
+	// 	mrq->data ? mrq->data->bytes_xfered : 0);
 
 	writel(0xffffffff, host->base + MMCICLEAR);
 	mmc_request_done(mmc, mrq);
@@ -537,12 +538,12 @@ static void mmci_poll_set_ios(struct mmc_host *mmc,
 	clk |= MCI_QCOM_CLK_FLOWENA |
 	       MCI_QCOM_CLK_SELECT_IN_FBCLK;
 
-	pr_info("mmci-poll: set_ios clock=%u div=%u clkreg=%08x bus_width=%u timing=%u\n",
-		ios->clock,
-		0,
-		clk,
-		ios->bus_width,
-		ios->timing);
+	// pr_info("mmci-poll: set_ios clock=%u div=%u clkreg=%08x bus_width=%u timing=%u\n",
+	// 	ios->clock,
+	// 	0,
+	// 	clk,
+	// 	ios->bus_width,
+	// 	ios->timing);
 
 	pwr = MCI_PWR_ON;
 
