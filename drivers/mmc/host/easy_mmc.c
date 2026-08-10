@@ -135,7 +135,8 @@ static int mmci_poll_stop(struct mmci_poll_host *host,
 static int mmci_poll_xfer(struct mmci_poll_host *host,
 			  struct mmc_data *data)
 {
-	struct scatterlist *sg;
+	struct sg_mapping_iter miter;
+	unsigned int miter_flags = data->flags == MMC_DATA_READ ? SG_MITER_TO_SG : SG_MITER_FROM_SG;
 	unsigned int timeout;
 	int i, words;
 	u32 *buf;
@@ -146,9 +147,17 @@ static int mmci_poll_xfer(struct mmci_poll_host *host,
 	// 	readl(host->base + MMCIDATACNT),
 	// 	readl(host->base + MMCIFIFOCNT));
 
-	for_each_sg(data->sg, sg, data->sg_len, i) {
-		buf = sg_virt(sg);
-		words = sg->length >> 2;
+	sg_miter_start(&miter, data->sg, data->sg_len, miter_flags);
+	while (sg_miter_next(&miter)) {
+		buf = miter.addr;
+		words = miter.length >> 2;
+
+		if (!buf) {
+			// the mem cannot be mapped, return error
+			pr_err("mmci-poll: sg_virt failed for sg %d: null-ptr\n", i);
+			sg_miter_stop(&miter);
+			return -EFAULT;
+		}
 
 		while (words) {
 			if (data->flags & MMC_DATA_READ) {
@@ -162,6 +171,7 @@ static int mmci_poll_xfer(struct mmci_poll_host *host,
 					status = readl(host->base + MMCISTATUS);
 					pr_err("mmci-poll: RX wait timeout status=%08x\n",
 					       status);
+					sg_miter_stop(&miter);
 					return -ETIMEDOUT;
 				}
 
@@ -170,11 +180,12 @@ static int mmci_poll_xfer(struct mmci_poll_host *host,
 					      MCI_RXOVERRUN)) {
 					pr_err("mmci-poll: RX error status=%08x\n",
 					       status);
+					sg_miter_stop(&miter);
 					return -EIO;
 				}
 
 				if (status & MCI_RXFIFOHALFFULL) {
-					int burst = min(words + 1, 8);
+					int burst = min(words, 8);
 
 					while (burst--) {
 						*buf++ = readl(host->base + MMCIFIFO);
@@ -198,6 +209,7 @@ static int mmci_poll_xfer(struct mmci_poll_host *host,
 					       readl(host->base + MMCISTATUS),
 					       readl(host->base + MMCIDATACNT),
 					       readl(host->base + MMCIFIFOCNT));
+					sg_miter_stop(&miter);
 					return -ETIMEDOUT;
 				}
 
@@ -212,11 +224,12 @@ static int mmci_poll_xfer(struct mmci_poll_host *host,
 					      MCI_TXUNDERRUN)) {
 					pr_err("mmci-poll: TX error status=%08x datacnt=%08x fifocnt=%08x\n",
 					       status, datacnt, fifocnt);
+					sg_miter_stop(&miter);
 					return -EIO;
 				}
 
 				if (status & MCI_TXFIFOHALFEMPTY) {
-					int burst = min(words + 1, 8);
+					int burst = min(words, 8);
 
 					//pr_info("mmci-poll: TX burst=%d\n", burst);
 
@@ -232,9 +245,9 @@ static int mmci_poll_xfer(struct mmci_poll_host *host,
 			}
 		}
 	}
+	sg_miter_stop(&miter);
 
 	timeout = MMCI_POLL_TIMEOUT_US;
-
 	while (timeout--) {
 		status = readl(host->base + MMCISTATUS);
 
